@@ -535,118 +535,137 @@ git commit -m "Switch question content source from bundled JSON to Supabase with
 
 ## Task 4: Deterministic PDF question-bank segmentation
 
+**Revision note (superseding an earlier version of this task):** the first
+implementation of this task used `pdftotext -layout` plus a line-marker regex
+to segment questions. Task 6's review caught it producing badly corrupted
+question/option text for the majority of the 306 real questions — `pdftotext
+-layout` flattens the PDF's actual two-column table (問題/選項 一欄,
+解析/頁碼 另一欄) into single lines by row position, which interleaves the
+two columns' text whenever one cell wraps to more lines than the other,
+silently truncating options and contaminating explanations with the next
+question's stem. Investigation (see ledger) found the source PDF has a real,
+detectable table grid that `pdfplumber`'s `page.extract_tables()` reads
+directly, giving clean, already-column-separated data with **zero** bad rows
+verified across all 306 real questions — eliminating the corruption at its
+root instead of patching around it. This revision replaces the whole
+approach; Task 5 and Task 6 below are updated to match the new output shape.
+
 **Files:**
 - Create: `scripts/extract/segment_questions.py`
 - Test: `scripts/extract/test_segment_questions.py`
 
 **Interfaces:**
 - Consumes: `/Users/fortune/Documents/外幣/外幣題庫_ABECD卷整理(含新增)V1.pdf`(唯讀,不修改原始檔案)
-- Produces: `scripts/extract/output/raw_blocks.json` — 一個 list,每筆 `{exam_set, question_no, answer, raw_text}`(題號與答案本來就印在題庫每題最前面兩欄,切段時順手一併取出,不算「解析欄位」;真正要留到後面才做的是拆 `question`/`options`/`explanation`),供 Task 5、6 進一步處理。這一步**只切段、不拆解題目內容**,目的是先用可驗證的方式確保沒有文字遺漏或錯位。
+- Produces: `scripts/extract/output/raw_blocks.json` — 一個 list,每筆
+  `{exam_set, question_no, answer, question_raw, explanation_raw}`。
+  `question_raw`/`explanation_raw` 直接來自 PDF 表格的第 3、4 欄,已經是
+  乾淨、正確斷行合併過的文字,不會有欄位互相污染的問題——這是用
+  `pdfplumber` 讀取 PDF 本身真實存在的表格格線做到的,不是用視覺位置去猜。
+  供 Task 5、6 進一步處理。
 
-- [ ] **Step 1:** 寫失敗測試(用一段已知的真實文字 fixture 斷言切段結果)
+- [ ] **Step 1:** 寫失敗測試(直接用 pdfplumber 表格抽取後會拿到的那種已結構化 row 當 fixture,不需要真的開 PDF)
 ```python
 # scripts/extract/test_segment_questions.py
-from segment_questions import segment_text
+from segment_questions import parse_table_row, detect_exam_set
 
-FIXTURE = """題號 答案                           A卷                                 答案說明
-1   3
-        95年3月14日金管會保險局...等配套措施下，可正面考量開放外幣傳統型保單：
-        1)BCD 2)ACD 3)ABD 4)ABC          【解析】沒有C保險費收取方式
-2   4   投資型保險與非投資型保險的最大差別...等特色 1)BCDE 2)ACDE 3)ACDE 4)ABCD
-"""
+def test_parses_valid_question_row():
+    row = ["10", "4",
+           "「投資型保險投資管理辦法」第12條規定...不得有下列哪些情事：\n1)AB 2)ABCD 3)A 4)ABC",
+           "參閱課本第32頁\n【解析】D選項錯在\"要保人\"，應為\"保險人\""]
+    block = parse_table_row(row, current_exam_set="A")
+    assert block["exam_set"] == "A"
+    assert block["question_no"] == 10
+    assert block["answer"] == 4
+    assert "不得有下列哪些情事" in block["question_raw"]
+    assert "【解析】" in block["explanation_raw"]
 
-def test_segment_splits_on_question_markers():
-    blocks = segment_text(FIXTURE, exam_set="A")
-    assert len(blocks) == 2
-    assert blocks[0]["question_no"] == 1
-    assert blocks[0]["answer"] == 3
-    assert "BCD" in blocks[0]["raw_text"]
-    assert blocks[1]["question_no"] == 2
-    assert blocks[1]["answer"] == 4
+def test_returns_none_for_header_row():
+    row = ["題號", "答案", "A卷", "答案說明"]
+    assert parse_table_row(row, current_exam_set="A") is None
 
-def test_segment_covers_all_text_no_loss():
-    blocks = segment_text(FIXTURE, exam_set="A")
-    joined = "".join(b["raw_text"] for b in blocks)
-    assert "投資型保險與非投資型保險的最大差別" in joined
+def test_returns_none_for_malformed_row():
+    assert parse_table_row(["1", None, "text", "exp"], current_exam_set="A") is None
+    assert parse_table_row(["not-a-number", "4", "text", "exp"], current_exam_set="A") is None
+
+def test_detects_exam_set_label_from_header():
+    assert detect_exam_set(["題號", "答案", "A卷", "答案說明"]) == "A"
+    assert detect_exam_set(["題號", "答案", "新增", "答案說明"]) == "新增"
+    assert detect_exam_set(["10", "4", "some question", "some explanation"]) is None
 ```
 - [ ] **Step 2:** 執行確認失敗
 ```bash
 cd scripts/extract && python3 -m pytest test_segment_questions.py -v
 ```
 Expected: FAIL(`ModuleNotFoundError: No module named 'segment_questions'`)。
-- [ ] **Step 3:** 實作切段邏輯(用「行首是 1–3 位數字 + 空白 + 1–4 的答案數字」當作新題目的起點標記,兩個標記之間全部文字歸屬前一題)
+- [ ] **Step 3:** 實作(純函式,只負責把 pdfplumber 表格抽取後的一個 row 轉成結構化 block,不在這裡碰 PDF 檔案本身)
 ```python
 # scripts/extract/segment_questions.py
 import re
 
-MARKER = re.compile(r'^\s*(\d{1,3})\s+([1-4])\s')
-EXAM_SET_HEADER = re.compile(r'題號\s*答案')
+EXAM_LABEL = re.compile(r'^(A卷|B卷|C卷|D卷|E卷|新增)$')
 
-def segment_text(text: str, exam_set: str):
-    lines = text.split("\n")
-    blocks = []
-    current = None
-    for line in lines:
-        if EXAM_SET_HEADER.search(line):
-            continue  # 跳過每頁重複的欄位標題列
-        m = MARKER.match(line)
-        if m:
-            if current is not None:
-                blocks.append(current)
-            current = {
-                "exam_set": exam_set,
-                "question_no": int(m.group(1)),
-                "answer": int(m.group(2)),
-                "raw_text": line[m.end():] + "\n",
-            }
-        elif current is not None:
-            current["raw_text"] += line + "\n"
-    if current is not None:
-        blocks.append(current)
-    return blocks
+def detect_exam_set(header_row):
+    for cell in header_row:
+        if cell:
+            m = EXAM_LABEL.match(cell.strip())
+            if m:
+                return m.group(1).replace('卷', '')
+    return None
+
+def parse_table_row(row, current_exam_set):
+    if len(row) != 4:
+        return None
+    qno, ans, qtext, exp = row
+    if qno is None or ans is None or qtext is None:
+        return None
+    try:
+        qno_i = int(qno.strip())
+        ans_i = int(ans.strip())
+    except (ValueError, AttributeError):
+        return None
+    return {
+        "exam_set": current_exam_set,
+        "question_no": qno_i,
+        "answer": ans_i,
+        "question_raw": qtext,
+        "explanation_raw": exp or "",
+    }
 ```
 - [ ] **Step 4:** 執行確認通過
 ```bash
 python3 -m pytest test_segment_questions.py -v
 ```
 Expected: PASS。
-- [ ] **Step 5:** 對真實 PDF 全文跑一次,並用「總筆數落在合理範圍、每個 exam_set 都有資料」做整體驗收(不是單元測試,是資料驗收腳本)
+- [ ] **Step 5:** 對真實 PDF 全文跑一次,並用「總筆數落在合理範圍、每個 exam_set 都有資料、沒有無法解析的 row」做整體驗收(不是單元測試,是資料驗收腳本)
 ```python
 # scripts/extract/run_segmentation.py
-import json, subprocess, re
+import json
+import pdfplumber
 from pathlib import Path
-from segment_questions import segment_text, EXAM_SET_HEADER
+from segment_questions import parse_table_row, detect_exam_set
 
 PDF = Path.home() / "Documents/外幣/外幣題庫_ABECD卷整理(含新增)V1.pdf"
 OUT = Path(__file__).parent / "output/raw_blocks.json"
 
-def extract_full_text() -> str:
-    return subprocess.run(
-        ["pdftotext", "-layout", str(PDF), "-"],
-        capture_output=True, text=True, check=True
-    ).stdout
-
-def split_by_exam_set(full_text: str):
-    # 用「題號 答案 ... X卷 ... 答案說明」列偵測卷別切換
-    parts, current_set, buf = [], None, []
-    for line in full_text.split("\n"):
-        if EXAM_SET_HEADER.search(line):
-            m = re.search(r'(A卷|B卷|C卷|D卷|E卷|新增)', line)
-            label = m.group(1) if m else current_set
-            if label != current_set and buf:
-                parts.append((current_set, "\n".join(buf)))
-                buf = []
-            current_set = label
-        buf.append(line)
-    if buf:
-        parts.append((current_set, "\n".join(buf)))
-    return parts
+def extract_all_blocks():
+    all_blocks = []
+    current_set = None
+    with pdfplumber.open(str(PDF)) as pdf:
+        for page in pdf.pages:
+            for table in page.extract_tables():
+                if not table:
+                    continue
+                detected = detect_exam_set(table[0])
+                if detected:
+                    current_set = detected
+                for row in table[1:]:
+                    block = parse_table_row(row, current_set)
+                    if block:
+                        all_blocks.append(block)
+    return all_blocks
 
 if __name__ == "__main__":
-    full_text = extract_full_text()
-    all_blocks = []
-    for exam_set, chunk in split_by_exam_set(full_text):
-        all_blocks.extend(segment_text(chunk, exam_set))
+    all_blocks = extract_all_blocks()
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps(all_blocks, ensure_ascii=False, indent=2))
     print(f"{len(all_blocks)} blocks written to {OUT}")
@@ -655,76 +674,74 @@ if __name__ == "__main__":
     assert {"A", "B", "C", "D", "E", "新增"}.issubset(sets_present), sets_present
 ```
 Run: `python3 run_segmentation.py`
-Expected: 印出總筆數(預期約 240–300 之間),且不會觸發 assert 失敗。若筆數落在範圍外,先不要調整 assert 遷就結果,回頭檢查 `MARKER` regex 是否有漏配(例如跨頁斷行造成的格式差異)。
+Expected: 印出總筆數(已知真實值為 306,A/B/C/D/E 各 50 筆、新增 56 筆)。這次驗收除了總數與卷別齊全,**還要額外抽查至少 10-15 筆真實輸出**,確認 `question_raw` 包含完整 4 個選項(不是被截斷)、`explanation_raw` 是乾淨的解析文字(不包含下一題的題幹或被截斷的選項文字)——這正是舊做法(`pdftotext -layout`)壞掉的地方,新做法理論上不會有這問題,但既然是關乎真實學員要看到的考題內容,必須實際驗證,不能只看總數字對不對。
 - [ ] **Step 6:** Commit
 ```bash
 git add scripts/extract/segment_questions.py scripts/extract/test_segment_questions.py scripts/extract/run_segmentation.py
-git commit -m "Add deterministic PDF question-bank segmentation with block-count validation"
+git commit -m "Add deterministic PDF question-bank segmentation via pdfplumber table extraction"
 ```
 
 ---
 
 ## Task 5: Extract verified original mnemonic phrases (口訣)
 
+**Revision note:** updated to consume `explanation_raw` (Task 4's new,
+already-column-separated output) instead of a single mixed `raw_text` blob.
+口訣 only ever appears in the 解析 column, so this narrows the search surface
+and removes any risk of accidentally matching something in the question/option
+text — a strict improvement, no functional loss.
+
 **Files:**
 - Create: `scripts/extract/extract_mnemonics.py`
 - Test: `scripts/extract/test_extract_mnemonics.py`
 
 **Interfaces:**
-- Consumes: `scripts/extract/output/raw_blocks.json`(Task 4)
+- Consumes: `scripts/extract/output/raw_blocks.json`(Task 4,讀 `explanation_raw` 欄位)
 - Produces: `scripts/extract/output/mnemonic_cards_original.json`,每筆 `{phrase, meaning_raw, related_question_nos}`(`related_question_nos` 是 `[{exam_set, question_no}, ...]` 的清單——同一句口訣常常在 A/B/C/D/E 幾份考卷裡重複出現於相似題目,萃取時要依 `phrase` 去重合併,不要每個出現位置各自產生一筆獨立紀錄,否則後面 Task 9 匯入會出現好幾張內容一樣的口訣卡)。這個檔案不進 git(產出的資料檔,Step 6 的 commit 範圍只有 3 支程式碼檔案)。`source` 由 Task 9 匯入時固定寫 `"original"`,不需要這個檔案自己存。
 
-- [ ] **Step 1:** 寫失敗測試,用本次對話已經人工核對過的兩個真實案例當 fixture(金三角、構政制)
+- [ ] **Step 1:** 寫失敗測試,用本次對話已經人工核對過的兩個真實案例當 fixture(金三角、構政制),fixture 直接是解析欄位的文字(不再夾雜題目/選項)
 ```python
 # scripts/extract/test_extract_mnemonics.py
 from extract_mnemonics import extract_mnemonic_from_block
 
 def test_extracts_explicit_koujue_marker():
-    raw = """
-    保險業資金運用於外匯存款，存放於同一銀行之金額，不得超過該保險業 1)業主權益百分之
-    三 2)資金百分之五 3)業主權益百分之五 4)資金百分之三
-    【解析】外匯存款→口訣 存放『金三角』→資金百分之三。
-    """
-    result = extract_mnemonic_from_block(raw)
+    explanation_raw = "參閱課本第84頁\n【解析】外匯存款→口訣 存放『金三角』→資金百分之三。"
+    result = extract_mnemonic_from_block(explanation_raw)
     assert result is not None
     assert result["phrase"] == "金三角"
 
 def test_extracts_koujue_without_quote_marks():
-    raw = """
-    保險業訂定國外投資風險監控管理措施，應包括有效執行之 Ａ風險管理政策 Ｂ風險管理架構
-    Ｃ風險管理制度 1)ＢＣＤ 2)ＡＣＤ 3)ＡＢＣ 4)ＡＢＣＤ
-    【解析】國外投資風險監控管理措施→構政制
-    """
-    result = extract_mnemonic_from_block(raw)
+    explanation_raw = "參閱課本第113頁\n【解析】國外投資風險監控管理措施→口訣構政制"
+    result = extract_mnemonic_from_block(explanation_raw)
     assert result is not None
     assert result["phrase"] == "構政制"
 
 def test_returns_none_when_no_mnemonic_present():
-    raw = "【解析】依保險法第146條規定，答案為第2項。"
-    assert extract_mnemonic_from_block(raw) is None
+    explanation_raw = "參閱課本第10頁\n【解析】依保險法第146條規定，答案為第2項。"
+    assert extract_mnemonic_from_block(explanation_raw) is None
 ```
 - [ ] **Step 2:** 確認失敗
 ```bash
 python3 -m pytest test_extract_mnemonics.py -v
 ```
 Expected: FAIL(`ModuleNotFoundError`)。
-- [ ] **Step 3:** 實作(兩種樣式都要接:`口訣『X』` 明確引號樣式,以及 `標題→X`、`X→Y制` 這種緊接在「口訣」字樣後、以頓號/箭頭分隔到句尾或下個標點的樣式)
+- [ ] **Step 3:** 實作(兩種樣式都要接:`口訣『X』` 明確引號樣式,以及 `標題→X`、`X→Y制` 這種緊接在「口訣」字樣後、以頓號/箭頭分隔到句尾或下個標點的樣式)。`_QUOTED` 的擷取長度要有上限,避免把整段解析文字都吃進去。
 ```python
 # scripts/extract/extract_mnemonics.py
 import re
 
-_QUOTED = re.compile(r'口訣[^『]*『([^』]+)』')
+_QUOTED = re.compile(r'口訣[^『\n]{0,10}『([^』\n]{1,20})』')
 _BARE = re.compile(r'口訣\s*[→]?\s*([^\s。\n]{2,8})')
 
-def extract_mnemonic_from_block(raw_text: str):
-    if "口訣" not in raw_text:
+def extract_mnemonic_from_block(explanation_raw: str):
+    if "口訣" not in explanation_raw:
         return None
-    m = _QUOTED.search(raw_text)
+    m = _QUOTED.search(explanation_raw)
     if m:
-        return {"phrase": m.group(1), "meaning_raw": raw_text.strip()}
-    m = _BARE.search(raw_text)
+        return {"phrase": m.group(1), "meaning_raw": explanation_raw.strip()}
+    m = _BARE.search(explanation_raw)
     if m:
-        return {"phrase": m.group(1), "meaning_raw": raw_text.strip()}
+        return {"phrase": m.group(1), "meaning_raw": explanation_raw.strip()}
     return None
 ```
 - [ ] **Step 4:** 確認通過
@@ -732,7 +749,7 @@ def extract_mnemonic_from_block(raw_text: str):
 python3 -m pytest test_extract_mnemonics.py -v
 ```
 Expected: PASS。
-- [ ] **Step 5:** 對 `raw_blocks.json` 全量跑,輸出結果,並列印出每一筆讓你人工過目(這批因為是「原文萃取」,人工過目是核對有沒有截斷/誤判,不是覆核法規正確性)
+- [ ] **Step 5:** 對 `raw_blocks.json` 全量跑,依 `phrase` 去重合併後輸出結果,並列印出每一筆讓你人工過目(這批因為是「原文萃取」,人工過目是核對有沒有截斷/誤判,不是覆核法規正確性)
 ```python
 # scripts/extract/run_extract_mnemonics.py
 import json
@@ -740,19 +757,23 @@ from pathlib import Path
 from extract_mnemonics import extract_mnemonic_from_block
 
 BLOCKS = json.loads((Path(__file__).parent / "output/raw_blocks.json").read_text())
-results = []
+grouped = {}
 for b in BLOCKS:
-    r = extract_mnemonic_from_block(b["raw_text"])
-    if r:
-        r["exam_set"] = b["exam_set"]
-        r["question_no"] = b["question_no"]
-        results.append(r)
+    r = extract_mnemonic_from_block(b["explanation_raw"])
+    if not r:
+        continue
+    entry = grouped.setdefault(r["phrase"], {
+        "phrase": r["phrase"], "meaning_raw": r["meaning_raw"], "related_question_nos": [],
+    })
+    entry["related_question_nos"].append({"exam_set": b["exam_set"], "question_no": b["question_no"]})
 
+results = list(grouped.values())
 out = Path(__file__).parent / "output/mnemonic_cards_original.json"
 out.write_text(json.dumps(results, ensure_ascii=False, indent=2))
-print(f"{len(results)} original mnemonic phrases found:")
+print(f"{len(results)} unique original mnemonic phrases found:")
 for r in results:
-    print(f"  [{r['exam_set']}-{r['question_no']}] {r['phrase']}")
+    refs = ", ".join(f"{q['exam_set']}-{q['question_no']}" for q in r["related_question_nos"])
+    print(f"  {r['phrase']}  (from: {refs})")
 ```
 Run: `python3 run_extract_mnemonics.py`,把印出的清單貼給我人工過目確認(這步驟等你跑完實際執行時提交結果給我檢視,不是自動放行)。
 - [ ] **Step 6:** Commit
@@ -765,12 +786,23 @@ git commit -m "Extract verified original mnemonic phrases from question bank exp
 
 ## Task 6: Structure raw blocks into question records (options/answer/explanation split)
 
+**Revision note:** Task 4's new output already separates `question_raw` from
+`explanation_raw` at the source (via the PDF's real table columns), so this
+task no longer needs to locate a `【解析】` marker inside a single mixed
+blob to split question from explanation — that was the single biggest
+source of corruption in the original approach (a marker landing mid-wrap
+would silently truncate options and leak explanation text into the next
+question, and vice versa). This task now only needs to: (a) split
+`question_raw`'s trailing `1)...2)...3)...4)...` into stem + options, and
+(b) pull the page number out of `explanation_raw`, keeping the rest as
+`explanation`.
+
 **Files:**
 - Create: `scripts/extract/structure_questions.py`
 - Test: `scripts/extract/test_structure_questions.py`
 
 **Interfaces:**
-- Consumes: `scripts/extract/output/raw_blocks.json`
+- Consumes: `scripts/extract/output/raw_blocks.json`(讀 `question_raw`/`explanation_raw`)
 - Produces: `scripts/extract/output/questions_structured.json`,每筆含 `question, options[], explanation, textbook_page`(此步驟先不填 `chapter_id`,由 Task 7 補上)
 
 - [ ] **Step 1:** 寫失敗測試,涵蓋兩種常見格式:一般四選一,以及題幹夾帶英文字母子選項、答案為組合(如 "1)BCD") 的格式
@@ -779,22 +811,18 @@ git commit -m "Extract verified original mnemonic phrases from question bank exp
 from structure_questions import structure_block
 
 def test_simple_four_choice():
-    raw = """付之款項向______辦理結匯，並應將結匯明細資料留存以供查核。 1)銀行業 2)中央銀行
-        3)財政部 4)金管會
-        參閱課本第23頁
-        【解析】結匯→向銀行業辦理"""
-    result = structure_block(raw)
+    question_raw = "付之款項向______辦理結匯，並應將結匯明細資料留存以供查核。\n1)銀行業 2)中央銀行\n3)財政部 4)金管會"
+    explanation_raw = "參閱課本第23頁\n【解析】結匯→向銀行業辦理"
+    result = structure_block(question_raw, explanation_raw)
     assert result["textbook_page"] == 23
     assert result["explanation"] == "結匯→向銀行業辦理"
     assert len(result["options"]) == 4
     assert result["options"][0] == "銀行業"
 
 def test_lettered_combination_choice():
-    raw = """依「保險業辦理外匯業務管理辦法」規定，保險業得申請辦理下列哪些外匯業務：A以外幣收付
-        之人身保險業務B以外幣收付之非投資型年金保險 1) A B C 2) A C 3) B D 4) C D
-        參閱課本第20頁
-        【解析】B外投年轉臺 D外幣放款"""
-    result = structure_block(raw)
+    question_raw = "依「保險業辦理外匯業務管理辦法」規定，保險業得申請辦理下列哪些外匯業務：A以外幣收付\n之人身保險業務B以外幣收付之非投資型年金保險\n1) A B C 2) A C 3) B D 4) C D"
+    explanation_raw = "參閱課本第20頁\n【解析】B外投年轉臺 D外幣放款"
+    result = structure_block(question_raw, explanation_raw)
     assert result["options"] == ["A B C", "A C", "B D", "C D"]
     assert "外投年轉臺" in result["explanation"]
 ```
@@ -803,7 +831,7 @@ def test_lettered_combination_choice():
 python3 -m pytest test_structure_questions.py -v
 ```
 Expected: FAIL(`ModuleNotFoundError`)。
-- [ ] **Step 3:** 實作(用「【解析】」當作題目/選項 vs 解析的分界,用「參閱課本第N頁」正則抓頁碼,選項用 `\d\)` 切)
+- [ ] **Step 3:** 實作(`question_raw` 用「數字)」切出選項,`explanation_raw` 用「參閱課本第N頁」正則抓頁碼、其餘接在後面當解析)
 ```python
 # scripts/extract/structure_questions.py
 import re
@@ -812,19 +840,18 @@ _PAGE = re.compile(r'參閱課本第\s*(\d+)')
 _EXPLANATION = re.compile(r'【解析】(.*)', re.S)
 _OPTION_SPLIT = re.compile(r'\d\)\s*')
 
-def structure_block(raw_text: str):
-    text = " ".join(raw_text.split("\n")).strip()
+def structure_block(question_raw: str, explanation_raw: str):
+    q_text = " ".join(question_raw.split("\n")).strip()
+    exp_text = " ".join(explanation_raw.split("\n")).strip()
 
-    page_match = _PAGE.search(text)
+    page_match = _PAGE.search(exp_text)
     textbook_page = int(page_match.group(1)) if page_match else None
 
-    exp_match = _EXPLANATION.search(text)
-    explanation = exp_match.group(1).strip() if exp_match else ""
-    before_explanation = text[:exp_match.start()] if exp_match else text
-    before_explanation = _PAGE.sub("", before_explanation).strip()
+    exp_match = _EXPLANATION.search(exp_text)
+    explanation = exp_match.group(1).strip() if exp_match else _PAGE.sub("", exp_text).strip()
 
     # 選項一律以 "數字)" 切，第一段(切割前的文字)是題幹
-    parts = _OPTION_SPLIT.split(before_explanation)
+    parts = _OPTION_SPLIT.split(q_text)
     question = parts[0].strip()
     options = [p.strip() for p in parts[1:] if p.strip()]
 
@@ -840,7 +867,7 @@ def structure_block(raw_text: str):
 python3 -m pytest test_structure_questions.py -v
 ```
 Expected: PASS。
-- [ ] **Step 5:** 對全量 `raw_blocks.json` 跑,並輸出「無法正確切出 4 個選項」的筆數與內容清單(這些屬於格式特例,需要人工個別檢視,不能默默丟掉)
+- [ ] **Step 5:** 對全量 `raw_blocks.json` 跑,並輸出「無法正確切出 4 個選項」的筆數與內容清單(這些屬於格式特例,需要人工個別檢視,不能默默丟掉)。因為 Task 4 已經改用乾淨的表格抽取,這裡預期絕大多數題目都能正確切出 4 個選項——如果 needs_review 比例仍然偏高(例如超過 15-20%),要實際打開幾筆看內容,判斷是 `structure_block` 本身的切分邏輯還不夠(例如某些題目選項本身就不是用「數字)」格式寫的),而不是想都不想就當作預期中的雜訊。
 ```python
 # scripts/extract/run_structure_questions.py
 import json
@@ -850,7 +877,7 @@ from structure_questions import structure_block
 BLOCKS = json.loads((Path(__file__).parent / "output/raw_blocks.json").read_text())
 structured, needs_review = [], []
 for b in BLOCKS:
-    s = structure_block(b["raw_text"])
+    s = structure_block(b["question_raw"], b["explanation_raw"])
     s.update({"exam_set": b["exam_set"], "question_no": b["question_no"]})
     if len(s["options"]) != 4:
         needs_review.append(s)
@@ -865,7 +892,7 @@ Path(__file__).parent.joinpath("output/questions_needs_review.json").write_text(
 print(f"structured cleanly: {len(structured)}")
 print(f"needs manual review (options != 4): {len(needs_review)}")
 ```
-Run: `python3 run_structure_questions.py`。把 `questions_needs_review.json` 的內容整批交給我人工確認怎麼處理(通常是 PDF 斷行造成選項黏在一起,少量手動修正即可,不要自動猜測答案內容)。
+Run: `python3 run_structure_questions.py`。把 `questions_needs_review.json` 的內容整批交給我人工確認怎麼處理(通常是 PDF 斷行造成選項黏在一起,少量手動修正即可,不要自動猜測答案內容)。**另外對「structured cleanly」那批也要抽查 10-15 筆**,確認選項真的完整、沒有被截斷或夾雜下一題內容——不能只看 `len(options)==4` 這個數字條件就直接信任內容是對的。
 - [ ] **Step 6:** Commit
 ```bash
 git add scripts/extract/structure_questions.py scripts/extract/test_structure_questions.py scripts/extract/run_structure_questions.py
