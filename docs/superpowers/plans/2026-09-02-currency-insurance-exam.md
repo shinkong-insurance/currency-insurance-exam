@@ -672,7 +672,7 @@ git commit -m "Add deterministic PDF question-bank segmentation with block-count
 
 **Interfaces:**
 - Consumes: `scripts/extract/output/raw_blocks.json`(Task 4)
-- Produces: `scripts/extract/output/mnemonic_cards_original.json`,每筆 `{phrase, meaning_raw, related_question_nos, exam_set, source_line}`,`source` 固定為 `"original"`
+- Produces: `scripts/extract/output/mnemonic_cards_original.json`,每筆 `{phrase, meaning_raw, related_question_nos}`(`related_question_nos` 是 `[{exam_set, question_no}, ...]` 的清單——同一句口訣常常在 A/B/C/D/E 幾份考卷裡重複出現於相似題目,萃取時要依 `phrase` 去重合併,不要每個出現位置各自產生一筆獨立紀錄,否則後面 Task 9 匯入會出現好幾張內容一樣的口訣卡)。這個檔案不進 git(產出的資料檔,Step 6 的 commit 範圍只有 3 支程式碼檔案)。`source` 由 Task 9 匯入時固定寫 `"original"`,不需要這個檔案自己存。
 
 - [ ] **Step 1:** 寫失敗測試,用本次對話已經人工核對過的兩個真實案例當 fixture(金三角、構政制)
 ```python
@@ -1106,21 +1106,30 @@ def seed():
     mnemonics = json.loads((Path(__file__).parent.parent / "extract/output/mnemonic_cards_original.json").read_text())
     mnemonic_rows, skipped = [], []
     for m in mnemonics:
-        key = (m["exam_set"], m["question_no"])
-        if key not in lookup:
-            skipped.append(m)  # 該題被 Task 6 判定為格式特例、未進 questions_with_chapter.json
-            continue
-        q_id, chapter_id = lookup[key]
+        # related_question_nos 是一個 [{exam_set, question_no}, ...] 清單（同一句口訣
+        # 常出現在多份考卷的相似題目，Task 5 已依 phrase 去重合併），這裡把每一個都
+        # 對應回真正的 question id，缺一筆不代表整張口訣卡作廢，只跳過那一筆關聯。
+        related_ids, chapter_id = [], None
+        for ref in m["related_question_nos"]:
+            key = (ref["exam_set"], ref["question_no"])
+            if key not in lookup:
+                skipped.append({**ref, "phrase": m["phrase"]})
+                continue
+            q_id, cid = lookup[key]
+            related_ids.append(q_id)
+            chapter_id = chapter_id or cid  # 用第一個對得上的題目所屬章節代表整張卡
+        if not related_ids:
+            continue  # 這句口訣的所有出處都對應不到已分類的題目，整張卡跳過
         mnemonic_rows.append({
             "chapter_id": chapter_id,
             "phrase": m["phrase"], "meaning": [m["meaning_raw"]],
             "source": "original", "approved": True,
-            "related_question_ids": [q_id],
+            "related_question_ids": related_ids,
         })
     if mnemonic_rows:
         sb.table("mnemonic_cards").upsert(mnemonic_rows).execute()
     if skipped:
-        print(f"警告：{len(skipped)} 筆口訣卡對應不到已分類的題目，需人工確認：")
+        print(f"警告：{len(skipped)} 筆口訣卡的出處題目對應不到已分類的題目，需人工確認：")
         for s in skipped:
             print(f"  [{s['exam_set']}-{s['question_no']}] {s['phrase']}")
     return len(rows), len(mnemonic_rows)
