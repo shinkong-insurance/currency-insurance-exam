@@ -1,27 +1,30 @@
 import re
 
-MARKER = re.compile(r'^\s*(\d{1,3})\s+([1-4])(?:\s|$)')
-EXAM_SET_HEADER = re.compile(r'題號\s*答案')
+EXAM_LABEL = re.compile(r'^(A卷|B卷|C卷|D卷|E卷|新增)$')
 
-def segment_text(text: str, exam_set: str):
-    lines = text.split("\n")
-    blocks = []
-    current = None
-    for line in lines:
-        if EXAM_SET_HEADER.search(line):
-            continue  # 跳過每頁重複的欄位標題列
-        m = MARKER.match(line)
-        if m:
-            if current is not None:
-                blocks.append(current)
-            current = {
-                "exam_set": exam_set,
-                "question_no": int(m.group(1)),
-                "answer": int(m.group(2)),
-                "raw_text": line[m.end():] + "\n",
-            }
-        elif current is not None:
-            current["raw_text"] += line + "\n"
-    if current is not None:
-        blocks.append(current)
-    return blocks
+def detect_exam_set(header_row):
+    for cell in header_row:
+        if cell:
+            m = EXAM_LABEL.match(cell.strip())
+            if m:
+                return m.group(1).replace('卷', '')
+    return None
+
+def parse_table_row(row, current_exam_set):
+    if len(row) != 4:
+        return None
+    qno, ans, qtext, exp = row
+    if qno is None or ans is None or qtext is None:
+        return None
+    try:
+        qno_i = int(qno.strip())
+        ans_i = int(ans.strip())
+    except (ValueError, AttributeError):
+        return None
+    return {
+        "exam_set": current_exam_set,
+        "question_no": qno_i,
+        "answer": ans_i,
+        "question_raw": qtext,
+        "explanation_raw": exp or "",
+    }
