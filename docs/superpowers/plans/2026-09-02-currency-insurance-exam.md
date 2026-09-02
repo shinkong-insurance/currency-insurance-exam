@@ -878,7 +878,7 @@ BLOCKS = json.loads((Path(__file__).parent / "output/raw_blocks.json").read_text
 structured, needs_review = [], []
 for b in BLOCKS:
     s = structure_block(b["question_raw"], b["explanation_raw"])
-    s.update({"exam_set": b["exam_set"], "question_no": b["question_no"]})
+    s.update({"exam_set": b["exam_set"], "question_no": b["question_no"], "answer": b["answer"]})
     if len(s["options"]) != 4:
         needs_review.append(s)
     else:
@@ -1117,9 +1117,17 @@ def test_converts_structured_question_to_supabase_row():
 - [ ] **Step 2:** 確認失敗 → 實作
 ```python
 # scripts/seed/seed_content.py
-import json, os
+import json, os, uuid
 from pathlib import Path
 from supabase import create_client
+
+# 固定命名空間，讓同一句 phrase 每次重跑都算出同一個 uuid——mnemonic_cards.id
+# 預設是 uuid_generate_v4()（隨機），upsert 若不帶 id 就永遠對不上衝突目標，
+# 每次重跑都會變成新增而不是更新，整張表會一直長。
+_MNEMONIC_ID_NAMESPACE = uuid.UUID("6f2f9a1e-8f2b-4c1e-9c3a-2b7e6d1f4a90")
+
+def _mnemonic_id(phrase: str) -> str:
+    return str(uuid.uuid5(_MNEMONIC_ID_NAMESPACE, phrase))
 
 def to_question_row(q: dict, id_: int) -> dict:
     return {
@@ -1179,6 +1187,7 @@ def seed():
         if not related_ids:
             continue  # 這句口訣的所有出處都對應不到已分類的題目，整張卡跳過
         mnemonic_rows.append({
+            "id": _mnemonic_id(m["phrase"]),
             "chapter_id": chapter_id,
             "phrase": m["phrase"], "meaning": [m["meaning_raw"]],
             "source": "original", "approved": True,
