@@ -80,7 +80,7 @@ git commit -m "Scaffold currency-insurance-exam from insurance-exam-app template
 - Test: `supabase/migrations/0001_init_schema.test.sql`(用 `psql` 跑的斷言腳本)
 
 **Interfaces:**
-- Produces: 資料表 `course, chapters, questions, mnemonic_cards, sections, levels, level_progress, wrong_book, favorites, license_keys, license_key_devices, study_logs`,後續 Task 3(Dart repository)與 Task 8(seed script)都依賴這裡定義的欄位名稱與型別
+- Produces: 資料表 `course, chapters, questions, mnemonic_cards, sections, levels, level_progress, license_keys, key_sessions, key_favorites, key_wrong_answers, study_logs` + RPC `increment_key_used_count`。後續 Task 3(Dart repository)與 Task 9(seed script)依賴內容表欄位;`license_keys`/`key_sessions`/`key_favorites`/`key_wrong_answers`/`study_logs` 的表名、欄位、RPC 名稱是**逐字對照** Task 1 原樣複製過來的 `lib/core/services/lk_auth_service.dart`、`cloud_sync_service.dart`、`study_logger.dart` 這三支既有(不修改邏輯的)服務實際查詢的內容,不是自行設計——這三支檔案完全不會修改,新專案的表結構必須跟它們的查詢字串完全對上,否則登入/同步會整支壞掉。
 
 - [ ] **Step 1:** 寫 schema SQL
 ```sql
@@ -143,60 +143,87 @@ create table levels (
   pass_threshold numeric not null default 0.7
 );
 
+-- 以下 license_keys / key_sessions / key_favorites / key_wrong_answers 的表名與欄位，
+-- 逐字對照 lib/core/services/lk_auth_service.dart 與 cloud_sync_service.dart
+-- 實際查詢的欄位（.select/.eq/.insert/.update 用到的每一個名字），不是新設計。
 create table license_keys (
   id uuid primary key default uuid_generate_v4(),
   key_code text unique not null,
   batch_name text,
-  max_devices int not null default 1,
-  disabled boolean not null default false,
-  expires_at timestamptz,
-  created_at timestamptz not null default now()
+  max_uses int not null default 1,      -- 0 = 無限
+  used_count int not null default 0,
+  expires_at timestamptz not null,
+  is_active boolean not null default true
 );
 
-create table license_key_devices (
+create table key_sessions (
   id uuid primary key default uuid_generate_v4(),
-  license_key_id uuid not null references license_keys(id) on delete cascade,
+  key_id uuid not null references license_keys(id) on delete cascade,
   device_id text not null,
-  bound_at timestamptz not null default now(),
-  unique (license_key_id, device_id)
+  login_count int not null default 1,
+  last_used_at timestamptz,
+  unique (key_id, device_id)
 );
 
-create table study_logs (
-  id uuid primary key default uuid_generate_v4(),
-  license_key text not null,
-  event_type text not null,
-  payload jsonb,
-  created_at timestamptz not null default now()
-);
+-- lk_auth_service.dart 用 _sb.rpc('increment_key_used_count', params: {'k_id': keyId}) 呼叫
+create or replace function increment_key_used_count(k_id uuid)
+returns void as $$
+  update license_keys set used_count = used_count + 1 where id = k_id;
+$$ language sql;
 
-create table wrong_book (
-  license_key text not null,
-  question_id int not null references questions(id),
-  wrong_count int not null default 1,
-  correct_streak int not null default 0,
-  last_wrong_time timestamptz not null default now(),
-  next_review_date date not null default (current_date + 1),
-  primary key (license_key, question_id)
-);
-
-create table favorites (
-  license_key text not null,
-  question_id int not null references questions(id),
+create table key_favorites (
+  key_id uuid not null references license_keys(id) on delete cascade,
+  device_id text not null,
+  question_id text not null,   -- CloudSyncService 的方法簽名是 String questionId，這裡沿用 text，不對 questions(id) 建 FK（int 與 text 型別不同）
   created_at timestamptz not null default now(),
-  primary key (license_key, question_id)
+  unique (key_id, device_id, question_id)
+);
+
+create table key_wrong_answers (
+  key_id uuid not null references license_keys(id) on delete cascade,
+  device_id text not null,
+  question_id text not null,
+  wrong_count int not null default 1,
+  last_wrong_at timestamptz not null default now(),
+  correct_streak int not null default 0,               -- 新增（spec §8.4）
+  next_review_date date not null default (current_date + 1),  -- 新增（spec §8.4）
+  unique (key_id, device_id, question_id)
 );
 
 create table level_progress (
-  license_key text not null,
+  key_id uuid not null references license_keys(id) on delete cascade,
+  device_id text not null,
   level_id int not null references levels(id),
   attempted int not null default 0,
   correct int not null default 0,
   passed boolean not null default false,
   last_attempt_at timestamptz,
-  primary key (license_key, level_id)
+  primary key (key_id, device_id, level_id)
 );
 
--- RLS：內容表對外唯讀，使用者資料表僅本人（比對 license_key）可讀寫
+-- study_logger.dart 的 _insert() 直接把這些欄位當頂層物件送出（不是包在 jsonb 裡），
+-- 只有 quizSession() 的 meta 這個小物件真的走 jsonb metadata 欄位。
+create table study_logs (
+  id uuid primary key default uuid_generate_v4(),
+  license_key text not null,    -- 存的是 key_code（StudyLogger._getLicenseKey 回傳 session.keyCode）
+  event_type text not null,
+  chapter_id text,
+  section_id text,
+  duration_seconds int,
+  questions_total int,
+  questions_correct int,
+  metadata jsonb,
+  created_at timestamptz not null default now()
+);
+
+-- RLS：內容表(course/chapters/questions/sections/levels/mnemonic_cards)對外唯讀。
+-- license_keys/key_sessions/key_favorites/key_wrong_answers/level_progress/study_logs
+-- 刻意不加 RLS ownership 限制：既有 lk_auth_service.dart / cloud_sync_service.dart 全程
+-- 用 anon key + 純 .eq('key_id', ...) 過濾，沒有任何 Supabase Auth session 或 JWT claim
+-- 可以讓 RLS 驗證「這個 key_id 真的屬於呼叫端」——加上去只會讓現有程式碼直接打不通。
+-- 這是沿用既有壽險 app 的信任模型，等於任何持有 anon key 又猜得到 key_id+device_id 的人
+-- 理論上就能讀寫該筆資料。這一點連同壽險本身的既有風險一併記錄在 ledger，交給你決定
+-- 要不要之後另外設計驗證機制強化，不在本次任務範圍內處理。
 alter table questions enable row level security;
 alter table mnemonic_cards enable row level security;
 alter table sections enable row level security;
@@ -210,29 +237,18 @@ create policy "content readable by anon" on sections for select using (true);
 create policy "content readable by anon" on levels for select using (true);
 create policy "content readable by anon" on chapters for select using (true);
 create policy "content readable by anon" on course for select using (true);
-
-alter table wrong_book enable row level security;
-alter table favorites enable row level security;
-alter table level_progress enable row level security;
-
-create policy "own rows only" on wrong_book for all
-  using (license_key = current_setting('request.jwt.claims.license_key', true))
-  with check (license_key = current_setting('request.jwt.claims.license_key', true));
-create policy "own rows only" on favorites for all
-  using (license_key = current_setting('request.jwt.claims.license_key', true))
-  with check (license_key = current_setting('request.jwt.claims.license_key', true));
-create policy "own rows only" on level_progress for all
-  using (license_key = current_setting('request.jwt.claims.license_key', true))
-  with check (license_key = current_setting('request.jwt.claims.license_key', true));
 ```
 - [ ] **Step 2:** 寫驗證腳本(不是空表就好,還要斷言關鍵欄位存在與 constraint 生效)
 ```sql
 -- supabase/migrations/0001_init_schema.test.sql
 select 1/count(*) from information_schema.tables
   where table_name in ('course','chapters','questions','mnemonic_cards','sections',
-                        'levels','level_progress','wrong_book','favorites',
-                        'license_keys','license_key_devices','study_logs')
+                        'levels','level_progress','license_keys','key_sessions',
+                        'key_favorites','key_wrong_answers','study_logs')
   having count(*) = 12;  -- 除以 0 會噴錯，藉此斷言剛好 12 張表都建立
+
+-- RPC 函式也要斷言存在，這是 lk_auth_service.dart 登入流程會直接呼叫的
+select 1/count(*) from pg_proc where proname = 'increment_key_used_count';
 
 -- answer 超出範圍應被拒絕
 do $$
@@ -255,7 +271,7 @@ supabase link --project-ref <你的新專案 ref>
 supabase db push
 psql "$SUPABASE_DB_URL" -f supabase/migrations/0001_init_schema.test.sql
 ```
-Expected: 兩個測試都印出 PASS/無錯誤。
+Expected: 表格數斷言與 RPC 存在斷言都不噴錯(除以 0 的寫法失敗才會報錯),check constraint 測試印出 PASS。
 - [ ] **Step 4:** Commit
 ```bash
 git add supabase/migrations
@@ -1020,7 +1036,7 @@ git commit -m "Derive keyword_hint from existing explanation text"
 
 **Interfaces:**
 - Consumes: `scripts/extract/output/questions_with_chapter.json`、`scripts/extract/output/mnemonic_cards_original.json`、`chapter_page_ranges.json`(Task 4–8 產出)
-- Produces: Supabase 表 `course/chapters/questions/mnemonic_cards` 有資料;供 Task 3 的 repository 與後續 UI 任務讀取
+- Produces: Supabase 表 `course/chapters/questions/mnemonic_cards` 有資料;供 Task 3 的 repository 與後續 UI 任務讀取。另外寫出 `scripts/extract/output/questions_seeded.json`(每筆問題多一個 `id` 欄位,值等於這次實際寫進 Supabase `questions.id` 的值)——Task 12 的 18 關切分依賴這個檔案取得跟 Supabase 一致的 question id,不能自己重新推算
 
 - [ ] **Step 1:** 寫失敗測試(驗證 JSON → Supabase row payload 的欄位轉換,不驗證網路呼叫)
 ```python
@@ -1073,6 +1089,13 @@ def seed():
     questions = json.loads((Path(__file__).parent.parent / "extract/output/questions_with_chapter.json").read_text())
     rows = [to_question_row(q, i + 1) for i, q in enumerate(questions)]
     sb.table("questions").upsert(rows).execute()
+
+    # 把這次實際指派的 id 寫回一個新檔案，Task 12 (18關切分) 依賴這個檔案取得
+    # 跟 Supabase 裡完全一致的 question id，不能靠「兩支腳本各自重算 enumerate+1」
+    # 這種隱性假設互相對齊 —— 那樣只要任一邊改了篩選/排序條件就會悄悄兜不起來。
+    seeded = [{**q, "id": rows[i]["id"]} for i, q in enumerate(questions)]
+    (Path(__file__).parent.parent / "extract/output/questions_seeded.json").write_text(
+        json.dumps(seeded, ensure_ascii=False, indent=2))
 
     # (exam_set, question_no) -> (question db id, chapter_id)，供口訣卡與原題目正確掛勾
     lookup = {
@@ -1134,11 +1157,15 @@ git commit -m "Add Supabase content seeding script for questions, chapters, and 
 **Files:**
 - Modify: `lib/models/wrong_book.dart`
 - Modify: `lib/repositories/user_data_repository.dart`
+- Modify: `lib/core/database/shared_preferences_store.dart`(`addWrong` 擴充欄位 + 新增 `updateWrongBookEntry`)
+- Modify: `lib/core/services/cloud_sync_service.dart`(新增 `updateWrong` 方法,寫入 `key_wrong_answers` 的 `correct_streak`/`next_review_date`)
 - Test: `test/repositories/user_data_repository_wrongbook_test.dart`
 
 **Interfaces:**
-- Consumes: 既有 `SharedPreferencesStore`(本機優先存取)、`CloudSyncService`(背景同步到 Supabase `wrong_book` 表,Task 2)
+- Consumes: 既有 `SharedPreferencesStore`(本機優先存取)、`CloudSyncService`(背景同步到 Supabase `key_wrong_answers` 表,Task 2)
 - Produces: `UserDataRepository.markReviewedCorrect(questionId)` / `markReviewedWrong(questionId)` / `getDueReviewCount()`,供 Task 11 的首頁提醒卡與複習模式呼叫
+
+已知範圍限制(不在本任務修正):既有 `CloudSyncService.fetchWrongAnswers()`(app 啟動時把雲端錯題拉回新裝置用)只 select `question_id, wrong_count`,不會拉 `correct_streak`/`next_review_date`。換裝置登入後,還沒複習過的錯題會被當成「從沒複習過」(streak 0、明天到期),不會整支壞掉,只是複習排程在新裝置上會重算一輪。要做到完整跨裝置排程同步需要額外修改 `fetchWrongAnswers()` 與其呼叫端,超出本任務範圍。
 
 - [ ] **Step 1:** 擴充 model
 ```dart
@@ -1255,11 +1282,16 @@ Future<void> markReviewedCorrect(int questionId) async {
     await removeWrong(questionId);
     return;
   }
-  entry['correct_streak'] = streak;
-  entry['next_review_date'] =
+  final nextReviewDate =
       DateTime.now().add(const Duration(days: 3)).toIso8601String().substring(0, 10);
+  entry['correct_streak'] = streak;
+  entry['next_review_date'] = nextReviewDate;
   await _store.updateWrongBookEntry(questionId, entry);
-  unawaited(CloudSyncService.updateWrong(questionId.toString(), entry));
+  unawaited(CloudSyncService.updateWrong(
+    questionId.toString(),
+    correctStreak: streak,
+    nextReviewDate: nextReviewDate,
+  ));
 }
 
 Future<void> markReviewedWrong(int questionId) async {
@@ -1283,7 +1315,56 @@ Future<List<int>> getDueWrongQuestionIds() async {
   return books.where((b) => b.isDue).map((b) => b.questionId).toList();
 }
 ```
-`addWrong` 需同步改成寫入 `correct_streak: 0` 與 `next_review_date: 明天`(既有實作只寫 `wrong_count`/`last_wrong_time`,需要擴充)。`SharedPreferencesStore` 需新增 `updateWrongBookEntry` 方法(依 `question_id` 覆寫單筆 map 並整體存回)。
+`lib/core/database/shared_preferences_store.dart` 現有 `addWrong` 只寫 `question_id`/`wrong_count`/`last_wrong_time`,需擴充成同時寫入/重置 `correct_streak`/`next_review_date`,並新增 `updateWrongBookEntry`:
+```dart
+// lib/core/database/shared_preferences_store.dart（修改 addWrong，新增 updateWrongBookEntry）
+Future<void> addWrong(int questionId) async {
+  final data = await getWrongBook();
+  final key = questionId.toString();
+  final tomorrow = DateTime.now().add(const Duration(days: 1))
+      .toIso8601String().substring(0, 10);
+  if (data.containsKey(key)) {
+    data[key]['wrong_count'] = (data[key]['wrong_count'] as int) + 1;
+    data[key]['last_wrong_time'] = DateTime.now().toIso8601String();
+  } else {
+    data[key] = {
+      'question_id': questionId,
+      'wrong_count': 1,
+      'last_wrong_time': DateTime.now().toIso8601String(),
+    };
+  }
+  data[key]['correct_streak'] = 0;         // 新增：答錯一律歸零
+  data[key]['next_review_date'] = tomorrow; // 新增：排到明天複習
+  await _setMap(_kWrongBook, data);
+}
+
+Future<void> updateWrongBookEntry(int questionId, Map<String, dynamic> entry) async {
+  final data = await getWrongBook();
+  data[questionId.toString()] = entry;
+  await _setMap(_kWrongBook, data);
+}
+```
+`lib/core/services/cloud_sync_service.dart` 新增 `updateWrong`,寫法比照既有 `recordWrong` 的 upsert 模式,補上 `correct_streak`/`next_review_date` 兩欄:
+```dart
+// lib/core/services/cloud_sync_service.dart（新增方法）
+/// 複習模式答對/答錯後同步 streak 與下次複習日到雲端
+static Future<void> updateWrong(
+  String questionId, {
+  required int correctStreak,
+  required String nextReviewDate,
+}) async {
+  if (!isLkMode) return;
+  try {
+    await _sb.from('key_wrong_answers').upsert({
+      'key_id': _keyId,
+      'device_id': _deviceId,
+      'question_id': questionId,
+      'correct_streak': correctStreak,
+      'next_review_date': nextReviewDate,
+    }, onConflict: 'key_id,device_id,question_id');
+  } catch (_) {}
+}
+```
 - [ ] **Step 5:** 補上 `getDueWrongQuestionIds` 的測試(跟 Step 2 的其他案例合併在同一個測試檔內)
 ```dart
   test('getDueWrongQuestionIds returns only due question ids', () async {
@@ -1300,7 +1381,7 @@ flutter test test/repositories/user_data_repository_wrongbook_test.dart
 Expected: 6 個測試全部 PASS。
 - [ ] **Step 7:** Commit
 ```bash
-git add lib/models/wrong_book.dart lib/repositories/user_data_repository.dart test/repositories/user_data_repository_wrongbook_test.dart
+git add lib/models/wrong_book.dart lib/repositories/user_data_repository.dart lib/core/database/shared_preferences_store.dart lib/core/services/cloud_sync_service.dart test/repositories/user_data_repository_wrongbook_test.dart
 git commit -m "Add spaced-repetition state machine to wrong book (review-mode-only streak tracking)"
 ```
 
@@ -1536,8 +1617,8 @@ git commit -m "Add review-mode support to QuizPage and home due-review badge"
 - Test: `scripts/extract/test_build_levels.py`
 
 **Interfaces:**
-- Consumes: `scripts/extract/output/questions_with_chapter.json`(含 `chapter_id`)
-- Produces: `scripts/extract/output/levels.json`,供 Task 9 的 seed 腳本一併匯入 `levels` 表(需在 Task 9 補上 `levels` upsert,此任務只負責產生資料)
+- Consumes: `scripts/extract/output/questions_seeded.json`(Task 9 產出,含跟 Supabase 一致的 `id`)
+- Produces: `scripts/extract/output/levels.json`,並直接寫入 Supabase `levels` 表(Task 9 執行時 `levels.json` 還不存在,所以匯入邏輯獨立寫在本任務,不依賴 Task 9 的 seed 腳本)
 
 - [ ] **Step 1:** 寫失敗測試
 ```python
@@ -1616,7 +1697,7 @@ import json
 from pathlib import Path
 from build_levels import build_levels
 
-questions = json.loads((Path(__file__).parent / "output/questions_with_chapter.json").read_text())
+questions = json.loads((Path(__file__).parent / "output/questions_seeded.json").read_text())
 levels = build_levels(questions)
 Path(__file__).parent.joinpath("output/levels.json").write_text(
     json.dumps(levels, ensure_ascii=False, indent=2))
@@ -1624,10 +1705,36 @@ print(f"共產生 {len(levels)} 關")
 for lvl in levels:
     print(f"  {lvl['label']}: {len(lvl['question_ids'])} 題")
 ```
-- [ ] **Step 5:** Commit
+- [ ] **Step 5:** 把 `levels.json` 匯入 Supabase(此表在 Task 9 執行當下還沒有資料可匯,所以獨立成一支腳本)
+```python
+# scripts/seed/seed_levels.py
+import json, os
+from pathlib import Path
+from supabase import create_client
+
+def seed_levels():
+    sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+    levels = json.loads(
+        (Path(__file__).parent.parent / "extract/output/levels.json").read_text())
+    sb.table("levels").upsert(levels).execute()
+    return len(levels)
+
+if __name__ == "__main__":
+    n = seed_levels()
+    print(f"seeded {n} levels")
+```
 ```bash
-git add scripts/extract/build_levels.py scripts/extract/test_build_levels.py scripts/extract/run_build_levels.py
-git commit -m "Add deterministic 18-level breakdown by chapter question volume"
+export SUPABASE_URL=<你的新專案 URL>
+export SUPABASE_SERVICE_ROLE_KEY=<service role key，僅在本機腳本使用，不可提交進 git>
+python3 scripts/seed/seed_levels.py
+```
+```sql
+select count(*) from levels;  -- 應等於 18
+```
+- [ ] **Step 6:** Commit
+```bash
+git add scripts/extract/build_levels.py scripts/extract/test_build_levels.py scripts/extract/run_build_levels.py scripts/seed/seed_levels.py
+git commit -m "Add deterministic 18-level breakdown by chapter question volume and seed into Supabase"
 ```
 
 ---
@@ -1640,7 +1747,7 @@ git commit -m "Add deterministic 18-level breakdown by chapter question volume"
 - Test: `test/features/levels/level_map_page_test.dart`
 
 **Interfaces:**
-- Consumes: Supabase `levels` 表(Task 9/12)、`level_progress` 表(Task 2)
+- Consumes: Supabase `levels` 表(Task 12)、`level_progress` 表結構(Task 2)
 - Produces: 一個路由 `/levels` 頁面,列出 18 關,綠燈狀態依 `level_progress.passed`
 
 - [ ] **Step 1:** 寫失敗 widget 測試
@@ -1749,7 +1856,8 @@ class LevelRepository {
     final rows = await _sb
         .from('level_progress')
         .select('passed')
-        .eq('license_key', session.keyCode)
+        .eq('key_id', session.keyId)
+        .eq('device_id', session.deviceId)
         .eq('level_id', levelId)
         .limit(1);
     final list = List<Map<String, dynamic>>.from(rows);
@@ -1761,13 +1869,14 @@ class LevelRepository {
     final session = await LkAuthService.getSession();
     if (session == null) return; // 未登入不寫入，不影響作答流程
     await _sb.from('level_progress').upsert({
-      'license_key': session.keyCode,
+      'key_id': session.keyId,
+      'device_id': session.deviceId,
       'level_id': levelId,
       'attempted': attempted,
       'correct': correct,
       'passed': passed,
       'last_attempt_at': DateTime.now().toIso8601String(),
-    });
+    }, onConflict: 'key_id,device_id,level_id');
   }
 }
 ```

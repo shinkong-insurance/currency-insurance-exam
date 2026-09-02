@@ -79,16 +79,22 @@ sections: { id, chapterId, order, title, content }  // 章節重點筆記(沿用
 
 levels: { id, order, label, chapterId, questionIds[], passThreshold: 0.7 }  // 18 關地圖
 
-level_progress: { levelId, attempted, correct, passed, lastAttemptAt }
+level_progress: { keyId, deviceId, levelId, attempted, correct, passed, lastAttemptAt }
 
-wrong_book: {
-  questionId, wrongCount, lastWrongTime,
+license_keys: { id, keyCode, batchName, maxUses, usedCount, expiresAt, isActive }
+key_sessions: { id, keyId, deviceId, loginCount, lastUsedAt }
+key_favorites: { keyId, deviceId, questionId }
+key_wrong_answers: {
+  keyId, deviceId, questionId, wrongCount, lastWrongAt,
   correctStreak,     // 新增
   nextReviewDate     // 新增
 }
-
-license_keys, study_logs  // 沿用壽險表結構
+study_logs: { id, licenseKey, eventType, chapterId, sectionId, durationSeconds, questionsTotal, questionsCorrect, metadata }
 ```
+
+以上 `license_keys`/`key_sessions`/`key_favorites`/`key_wrong_answers`/`study_logs` 的表名與欄位,是逐字對照既有(原樣複製、不修改)`lk_auth_service.dart`/`cloud_sync_service.dart`/`study_logger.dart` 實際查詢的內容,不是重新設計——這三支服務完全不改邏輯沿用,新專案的表結構必須跟它們的查詢字串完全對上。
+
+**已知安全性取捨(沿用壽險既有信任模型,非本次新增)**:`license_keys`/`key_sessions`/`key_favorites`/`key_wrong_answers`/`level_progress`/`study_logs` 這幾張使用者資料表**不加 RLS ownership 限制**。既有服務全程用 anon key + 純 `.eq('key_id', ...)` 過濾,沒有 Supabase Auth session 或 JWT claim 可以讓 RLS 驗證「這個 key_id 真的屬於呼叫端」。這代表任何持有 anon key 又猜得到 key_id+device_id 組合的人,理論上可以讀寫別人的資料。這是沿用壽險 app 已經在跑的信任模型,不是本次任務引入的新風險,但值得你知道並自行評估是否要之後加強驗證機制。
 
 ## 8. 新功能設計
 
@@ -140,3 +146,5 @@ license_keys, study_logs  // 沿用壽險表結構
 - `ai_generated` 口訣卡上線前必須人工覆核法規正確性,不可自動發布
 - 章節分類回推(頁碼→章節)無法全自動,需人工抽查
 - 白話雙向解析屬於高風險新增內容(法規正確性),需訂出人工覆核流程,不能單靠 AI 產出即上線
+- 使用者資料表(license_keys/key_sessions/key_favorites/key_wrong_answers/level_progress/study_logs)沿用壽險既有信任模型,沒有 RLS ownership 驗證,見第 7 節說明——是否要加強留給你決定
+- `CloudSyncService.fetchWrongAnswers()` 換裝置登入時不會拉回 `correct_streak`/`next_review_date`,新裝置上的複習排程會重算一輪,見 plan Task 10 說明
