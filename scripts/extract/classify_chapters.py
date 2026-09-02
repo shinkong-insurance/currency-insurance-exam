@@ -1,9 +1,11 @@
 import re
 
-# 依第一次出現的位置比對，所以放進 list 而非 dict（dict 在部分 Python 版本
-# 不保證插入順序在比對時被尊重；用 list 明確保證「先出現的法規優先」）
+# 用 list 而非 dict：比對結果採「文字中先出現者優先」，判斷依據是每個
+# pattern.search() 命中的 m.start() 位置高低，跟 list/dict 的走訪順序本身
+# 無關（dict 自 3.7 起也保證插入順序）。用 list 只是讓「六個法規、各自
+# 對應一個 chapter_id」這個對應關係讀起來直接，並不是走訪順序的正確性依據。
 _REGULATION_PATTERNS = [
-    (2, re.compile(r'保險業辦理外匯業務管理辦法')),
+    (2, re.compile(r'保險業(?:申請)?辦理外匯業務管理辦法')),
     (3, re.compile(r'非投資型人身保險業務應具備資格條件及注意事項')),
     (4, re.compile(r'管理外匯條例')),
     (5, re.compile(r'外匯收支或交易申報辦法')),

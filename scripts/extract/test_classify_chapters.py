@@ -13,3 +13,14 @@ def test_returns_none_when_no_known_regulation_named():
 def test_first_mentioned_regulation_wins_when_both_present():
     q = "「保險業辦理外匯業務管理辦法」與「管理外匯條例」的關係為何？"
     assert classify_by_content(q, "") == 2
+
+def test_first_mentioned_wins_by_text_position_not_pattern_list_order():
+    # Regression guard: chapter 4's pattern comes BEFORE chapter 5's in
+    # _REGULATION_PATTERNS, but chapter 5's regulation is named earlier in
+    # this text (modeled on real question 新增-44). A buggy implementation
+    # that just returns the first pattern-list entry it finds anywhere in
+    # the text (rather than comparing match positions) would wrongly return
+    # 4 here instead of 5.
+    q = ("依「外匯收支或交易申報辦法」第15條規定，申報義務人因下列哪種行為"
+         "應依「管理外匯條例」第20條第1項規定受罰")
+    assert classify_by_content(q, "") == 5
