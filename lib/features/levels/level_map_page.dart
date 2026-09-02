@@ -20,7 +20,7 @@ class LevelMapPage extends ConsumerWidget {
               leading: Text(passedAsync.valueOrNull == true ? '🟢' : '⚪',
                   style: const TextStyle(fontSize: 20)),
               title: Text(lvl.label, style: const TextStyle(fontSize: 18)),
-              onTap: () => context.go('/quiz/0?levelId=${lvl.id}'),
+              onTap: () => context.push('/quiz/0?levelId=${lvl.id}'),
             );
           }).toList(),
         ),

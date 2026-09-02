@@ -157,6 +157,13 @@ class HomePage extends ConsumerWidget {
                   color: const Color(0xFF1565C0),
                   onTap: () => context.push('/chapters'),
                 ),
+                _FeatureCard(
+                  icon: Icons.map,
+                  title: '18 關卡地圖',
+                  subtitle: '闖關學習，依章節分關卡練習，隨時可挑戰任何一關',
+                  color: Colors.teal,
+                  onTap: () => context.push('/levels'),
+                ),
                 const SizedBox(height: 20),
 
                 // ── 題庫練習 ──────────────────────────────────
