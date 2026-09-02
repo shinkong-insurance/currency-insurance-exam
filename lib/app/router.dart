@@ -14,6 +14,7 @@ import '../features/chapter/chapter_list_page.dart';
 import '../features/chapter/chapter_detail_page.dart';
 import '../features/section/section_reading_page.dart';
 import '../features/quiz/quiz_page.dart';
+import '../features/levels/level_map_page.dart';
 import '../features/exam/exam_page.dart';
 import '../features/exam/exam_result_page.dart';
 import '../features/wrongbook/wrong_book_page.dart';
@@ -87,6 +88,9 @@ final appRouter = GoRouter(
         isWrongBook: state.uri.queryParameters['wrong'] == 'true',
         isFavorite: state.uri.queryParameters['fav'] == 'true',
         isReviewMode: state.uri.queryParameters['review'] == 'true',
+        levelId: state.uri.queryParameters['levelId'] != null
+            ? int.parse(state.uri.queryParameters['levelId']!)
+            : null,
       ),
     ),
     GoRoute(
@@ -110,6 +114,7 @@ final appRouter = GoRouter(
         return ExamResultPage(result: extra);
       },
     ),
+    GoRoute(path: '/levels', builder: (_, __) => const LevelMapPage()),
     GoRoute(path: '/wrongbook', builder: (_, __) => const WrongBookPage()),
     GoRoute(path: '/favorite', builder: (_, __) => const FavoritePage()),
     GoRoute(path: '/progress', builder: (_, __) => const ProgressPage()),

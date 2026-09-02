@@ -5,6 +5,7 @@ import '../../models/chapter.dart';
 import '../../models/question.dart';
 import '../../providers/question_provider.dart';
 import '../../providers/user_data_provider.dart';
+import '../../providers/level_provider.dart';
 import '../../repositories/user_data_repository.dart';
 
 class QuizPage extends ConsumerStatefulWidget {
@@ -12,6 +13,7 @@ class QuizPage extends ConsumerStatefulWidget {
   final bool isWrongBook;
   final bool isFavorite;
   final bool isReviewMode;
+  final int? levelId;
 
   const QuizPage({
     super.key,
@@ -19,6 +21,7 @@ class QuizPage extends ConsumerStatefulWidget {
     this.isWrongBook = false,
     this.isFavorite = false,
     this.isReviewMode = false,
+    this.levelId,
   });
 
   @override
@@ -45,7 +48,10 @@ class _QuizPageState extends ConsumerState<QuizPage> {
     final userRepo = ref.read(userDataRepositoryProvider);
     List<Question> qs;
 
-    if (widget.isReviewMode) {
+    if (widget.levelId != null) {
+      final level = await ref.read(levelByIdProvider(widget.levelId!).future);
+      qs = level == null ? [] : await repo.getQuestionsByIds(level.questionIds);
+    } else if (widget.isReviewMode) {
       final dueIds = await userRepo.getDueWrongQuestionIds();
       qs = dueIds.isEmpty ? [] : await repo.getQuestionsByIds(dueIds);
     } else if (widget.isWrongBook) {
@@ -138,7 +144,16 @@ class _QuizPageState extends ConsumerState<QuizPage> {
   }
 
   Future<void> _saveProgressAndFinish() async {
-    if (!widget.isWrongBook && !widget.isFavorite && !widget.isReviewMode) {
+    if (widget.levelId != null) {
+      final passed = _questions.isNotEmpty && (_correctCount / _questions.length) >= 0.7;
+      await ref.read(levelRepositoryProvider).saveLevelProgress(
+            widget.levelId!,
+            attempted: _questions.length,
+            correct: _correctCount,
+            passed: passed,
+          );
+      ref.invalidate(levelPassedProvider(widget.levelId!));
+    } else if (!widget.isWrongBook && !widget.isFavorite && !widget.isReviewMode) {
       await ref.read(userDataRepositoryProvider).updateProgress(
             widget.chapterId,
             _questions.length,
