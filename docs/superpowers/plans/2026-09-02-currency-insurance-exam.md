@@ -1809,7 +1809,6 @@ def test_no_level_wildly_oversized_or_undersized():
 - [ ] **Step 2:** 確認失敗 → 實作(依章節題量比例分配關卡數,章節內部依 `question_no` 排序後平均切)
 ```python
 # scripts/extract/build_levels.py
-import math
 from collections import defaultdict
 
 def build_levels(questions: list, target_level_count: int = 18):
@@ -1835,16 +1834,23 @@ def build_levels(questions: list, target_level_count: int = 18):
     for cid in chapter_ids:
         ids = by_chapter[cid]
         n_levels = raw_allocation[cid]
-        chunk_size = math.ceil(len(ids) / n_levels)
-        for start in range(0, len(ids), chunk_size):
+        # 用 divmod 做平均切分，同一章節內每關題數最多只差 1 題。
+        # 原本用 ceil(len(ids)/n_levels) 當固定 chunk_size 再逐段切，
+        # 會讓除不盡時最後一關變成很小的「零頭」（例如 34 題切 4 關會變成
+        # 9,9,9,7，最後一關明顯偏少）；divmod 讓題數分配平均攤在所有關卡上。
+        base, remainder = divmod(len(ids), n_levels)
+        start = 0
+        for i in range(n_levels):
+            size = base + (1 if i < remainder else 0)
             levels.append({
                 "id": level_id,
                 "order": level_id,
-                "label": f"第{cid}章 第{(start // chunk_size) + 1}關",
+                "label": f"第{cid}章 第{i + 1}關",
                 "chapter_id": cid,
-                "question_ids": ids[start:start + chunk_size],
+                "question_ids": ids[start:start + size],
                 "pass_threshold": 0.7,
             })
+            start += size
             level_id += 1
     return levels
 ```
