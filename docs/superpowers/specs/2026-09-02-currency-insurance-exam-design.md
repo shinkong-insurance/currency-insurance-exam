@@ -60,7 +60,7 @@ v1 內容編輯直接使用 **Supabase 內建 Table Editor**,不另外開發自�
 ```
 course: { id, name, description }
 
-chapters: { id, courseId, order, title }  // 8 大主題
+chapters: { id, courseId, unitNo, title, weight }  // 8 大主題；unitNo/weight 沿用既有 Chapter model 欄位名稱(weight 外幣版固定為空字串,無章節配分資料)
 
 questions: {
   id, chapterId, questionNo, question, options[], answer,
@@ -124,7 +124,7 @@ license_keys, study_logs  // 沿用壽險表結構
 - NN/g〈UX Design for Seniors (Ages 65 and older)〉
 - NCBI PMC9892402〈Preservation of long-term memory in older adults using a spaced learning paradigm〉
 
-## 10. 內容產製計畫(分批,非一次到位)
+## 10. 內容產製計畫
 
 1. **腳本化萃取**:掃描題庫全文(已轉出至純文字),抓「口訣」「→」等標記字元,批次產出 `mnemonic_cards`(`source: original`)草稿
 2. **關鍵字破題**:從既有「【解析】」欄位改寫格式,批次產出 `keywordHint`
@@ -132,7 +132,7 @@ license_keys, study_logs  // 沿用壽險表結構
 4. **章節分類回推**:每題依答案說明的課本頁碼,對照課本(263頁投影片轉圖後)的頁碼→章節對照表,回推 `chapterId`(無法全自動,需人工抽查修正)
 5. 教材投影片轉圖:`pdftoppm` 逐頁轉 PNG,人工/關鍵字比對標出 8 大主題的頁碼區間,產出對應的 guide_pages 結構
 
-以上皆排在本 spec 覆核通過、進入 writing-plans 產出實作計畫之後,分批執行,不在單一階段一次做完。
+以上皆排在本 spec 覆核通過、進入 writing-plans 產出實作計畫之後,分批執行,逐一完成。
 
 ## 11. 待確認/開放風險
 
