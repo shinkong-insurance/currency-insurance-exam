@@ -15,3 +15,11 @@ def test_extracts_koujue_without_quote_marks():
 def test_returns_none_when_no_mnemonic_present():
     explanation_raw = "參閱課本第10頁\n【解析】依保險法第146條規定，答案為第2項。"
     assert extract_mnemonic_from_block(explanation_raw) is None
+
+def test_extracts_koujue_with_embedded_newline():
+    # VaR mnemonic split across lines due to explanation_raw formatting
+    explanation_raw = "參閱課本第196頁\n【解析】風險值口訣『週三、日\n一、週九九、十月』"
+    result = extract_mnemonic_from_block(explanation_raw)
+    assert result is not None
+    # Newline should be stripped from the extracted phrase
+    assert result["phrase"] == "週三、日一、週九九、十月"

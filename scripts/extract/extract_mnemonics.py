@@ -1,6 +1,11 @@
 import re
 
+# Quoted mnemonic pattern: 口訣『X』
+# Allows newlines in capture (bound: 1-30 chars) because explanation_raw can line-wrap
+# mid-phrase even though column-interleaving is fixed; newlines are stripped post-capture
 _QUOTED = re.compile(r'口訣[^『\n]{0,10}『([^』]{1,30})』')
+
+# Bare mnemonic pattern: 口訣X or 口訣→X (direct or arrow-separated)
 _BARE = re.compile(r'口訣\s*[→]?\s*([^\s。\n]{2,8})')
 
 def extract_mnemonic_from_block(explanation_raw: str):
