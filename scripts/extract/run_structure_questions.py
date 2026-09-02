@@ -5,7 +5,7 @@ from structure_questions import structure_block
 BLOCKS = json.loads((Path(__file__).parent / "output/raw_blocks.json").read_text())
 structured, needs_review = [], []
 for b in BLOCKS:
-    s = structure_block(b["raw_text"])
+    s = structure_block(b["question_raw"], b["explanation_raw"])
     s.update({"exam_set": b["exam_set"], "question_no": b["question_no"]})
     if len(s["options"]) != 4:
         needs_review.append(s)
