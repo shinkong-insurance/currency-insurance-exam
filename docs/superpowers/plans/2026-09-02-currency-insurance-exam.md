@@ -77,7 +77,7 @@ git commit -m "Scaffold currency-insurance-exam from insurance-exam-app template
 
 **Files:**
 - Create: `supabase/migrations/0001_init_schema.sql`
-- Test: `supabase/migrations/0001_init_schema.test.sql`(用 `psql` 跑的斷言腳本)
+- Test: `supabase/tests/0001_init_schema.test.sql`(用 `psql` 跑的斷言腳本;刻意放在 `supabase/migrations/` 之外——Supabase CLI 用檔名開頭的數字當 migration 版本號,`0001_init_schema.sql` 跟 `0001_init_schema.test.sql` 放在同一個 migrations 目錄會撞版本號,導致 `supabase db reset` 直接失敗)
 
 **Interfaces:**
 - Produces: 資料表 `course, chapters, questions, mnemonic_cards, sections, levels, level_progress, license_keys, key_sessions, key_favorites, key_wrong_answers, study_logs` + RPC `increment_key_used_count`。後續 Task 3(Dart repository)與 Task 9(seed script)依賴內容表欄位;`license_keys`/`key_sessions`/`key_favorites`/`key_wrong_answers`/`study_logs` 的表名、欄位、RPC 名稱是**逐字對照** Task 1 原樣複製過來的 `lib/core/services/lk_auth_service.dart`、`cloud_sync_service.dart`、`study_logger.dart` 這三支既有(不修改邏輯的)服務實際查詢的內容,不是自行設計——這三支檔案完全不會修改,新專案的表結構必須跟它們的查詢字串完全對上,否則登入/同步會整支壞掉。
@@ -240,7 +240,7 @@ create policy "content readable by anon" on course for select using (true);
 ```
 - [ ] **Step 2:** 寫驗證腳本(不是空表就好,還要斷言關鍵欄位存在與 constraint 生效)
 ```sql
--- supabase/migrations/0001_init_schema.test.sql
+-- supabase/tests/0001_init_schema.test.sql
 select 1/count(*) from information_schema.tables
   where table_name in ('course','chapters','questions','mnemonic_cards','sections',
                         'levels','level_progress','license_keys','key_sessions',
@@ -269,7 +269,7 @@ end $$;
 ```bash
 supabase link --project-ref <你的新專案 ref>
 supabase db push
-psql "$SUPABASE_DB_URL" -f supabase/migrations/0001_init_schema.test.sql
+psql "$SUPABASE_DB_URL" -f supabase/tests/0001_init_schema.test.sql
 ```
 Expected: 表格數斷言與 RPC 存在斷言都不噴錯(除以 0 的寫法失敗才會報錯),check constraint 測試印出 PASS。
 - [ ] **Step 4:** Commit
