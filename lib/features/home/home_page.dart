@@ -33,7 +33,7 @@ class HomePage extends ConsumerWidget {
             expandedHeight: 180,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
-              title: const Text('保險業務員考照',
+              title: const Text('外幣保險考照',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               background: Container(
                 decoration: BoxDecoration(

@@ -116,7 +116,7 @@ class _LicenseGatePageState extends ConsumerState<LicenseGatePage> {
                       const SizedBox(height: 20),
 
                       Text(
-                        '保險業務員資格測驗',
+                        '外幣保險資格測驗',
                         style: theme.textTheme.headlineSmall?.copyWith(
                             color: Colors.white, fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
