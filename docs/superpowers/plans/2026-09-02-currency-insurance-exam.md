@@ -2186,9 +2186,14 @@ flutter test test/features/quiz/quiz_level_mode_test.dart
 flutter test test/features/quiz/  # 確認沒弄壞既有模式
 ```
 Expected: 全部 PASS。
-- [ ] **Step 8:** Commit
+- [ ] **Step 8:** 補上首頁的入口(這步是這次審查才發現的缺口:整個計畫原本沒有任何一個任務把 `/levels` 掛到首頁,做完會是「功能存在但沒人找得到、只能手動打網址」)。比照 `lib/features/home/home_page.dart` 裡「錯題本」「收藏題目」等既有導覽項目的樣式與 `context.push`(不是 `context.go`——那些既有項目全部用 `push`,才能讓之後從測驗頁按「返回」正確回到首頁)新增一個「18關卡地圖」的入口,導到 `/levels`。同時把 `LevelMapPage` 裡從關卡卡片導到測驗頁的呼叫,從 `context.go('/quiz/0?levelId=${lvl.id}')` 改成 `context.push(...)`——用 `go` 會讓使用者答完一關後的返回鍵/手勢直接跳過關卡地圖(因為 `go` 會整個取代路由堆疊,不是疊上去),破壞「答完關卡回到地圖看到🟢再選下一關」這個地圖類 UI 最基本的操作迴圈。
 ```bash
-git add lib/models/level.dart lib/providers/level_provider.dart lib/repositories/level_repository.dart lib/features/levels/level_map_page.dart lib/features/quiz/quiz_page.dart lib/app/router.dart test/features/levels/level_map_page_test.dart test/features/quiz/quiz_level_mode_test.dart
+flutter test  # 確認補上入口沒有弄壞任何既有測試
+```
+Expected: 全部 PASS。
+- [ ] **Step 9:** Commit
+```bash
+git add lib/models/level.dart lib/providers/level_provider.dart lib/repositories/level_repository.dart lib/features/levels/level_map_page.dart lib/features/quiz/quiz_page.dart lib/features/home/home_page.dart lib/app/router.dart test/features/levels/level_map_page_test.dart test/features/quiz/quiz_level_mode_test.dart
 git commit -m "Add 18-level gamified map with soft-unlock, wired into QuizPage and level_progress tracking"
 ```
 
