@@ -123,6 +123,24 @@ class CloudSyncService {
     } catch (_) {}
   }
 
+  /// 複習模式答對/答錯後同步 streak 與下次複習日到雲端
+  static Future<void> updateWrong(
+    String questionId, {
+    required int correctStreak,
+    required String nextReviewDate,
+  }) async {
+    if (!isLkMode) return;
+    try {
+      await _sb.from('key_wrong_answers').upsert({
+        'key_id': _keyId,
+        'device_id': _deviceId,
+        'question_id': questionId,
+        'correct_streak': correctStreak,
+        'next_review_date': nextReviewDate,
+      }, onConflict: 'key_id,device_id,question_id');
+    } catch (_) {}
+  }
+
   /// 從錯題本移除（答對後可呼叫）
   static Future<void> removeWrong(String questionId) async {
     if (!isLkMode) return;

@@ -50,6 +50,8 @@ class SharedPreferencesStore {
   Future<void> addWrong(int questionId) async {
     final data = await getWrongBook();
     final key = questionId.toString();
+    final tomorrow = DateTime.now().add(const Duration(days: 1))
+        .toIso8601String().substring(0, 10);
     if (data.containsKey(key)) {
       data[key]['wrong_count'] = (data[key]['wrong_count'] as int) + 1;
       data[key]['last_wrong_time'] = DateTime.now().toIso8601String();
@@ -60,6 +62,15 @@ class SharedPreferencesStore {
         'last_wrong_time': DateTime.now().toIso8601String(),
       };
     }
+    data[key]['correct_streak'] = 0;          // 新增：答錯一律歸零
+    data[key]['next_review_date'] = tomorrow; // 新增：排到明天複習
+    await _setMap(_kWrongBook, data);
+  }
+
+  Future<void> updateWrongBookEntry(
+      int questionId, Map<String, dynamic> entry) async {
+    final data = await getWrongBook();
+    data[questionId.toString()] = entry;
     await _setMap(_kWrongBook, data);
   }
 
