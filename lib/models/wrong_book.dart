@@ -32,6 +32,14 @@ class WrongBook {
     'next_review_date': nextReviewDate,
   };
 
-  bool get isDue => DateTime.parse(nextReviewDate).isBefore(
-      DateTime.now().add(const Duration(days: 1)));
+  // 用純日期（不含時分秒）比較：nextReviewDate <= 今天才算到期。
+  // 原本寫成 DateTime.now().add(Duration(days: 1)) 會讓「排到明天」的題目
+  // 幾乎整天都被誤判成「今天就到期」（因為 nextReviewDate 解析出來是明天
+  // 00:00:00，而比較基準是明天的當下時刻，前者幾乎必然早於後者）——等於
+  // 才剛答錯排到隔天複習，馬上又被算進今日待複習，完全違背間隔複習的用意。
+  bool get isDue {
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+    return !DateTime.parse(nextReviewDate).isAfter(todayMidnight);
+  }
 }

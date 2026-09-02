@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:currency_insurance_exam/repositories/user_data_repository.dart';
+import 'package:currency_insurance_exam/models/wrong_book.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -51,10 +52,27 @@ void main() {
     expect(books.first.correctStreak, 0);
   });
 
-  test('getDueWrongQuestionIds returns only due question ids', () async {
+  test('isDue is true only when nextReviewDate is today or earlier', () {
+    final today = DateTime.now();
+    String dateStr(int offsetDays) =>
+        today.add(Duration(days: offsetDays)).toIso8601String().substring(0, 10);
+
+    final dueToday = WrongBook(questionId: 1, wrongCount: 1, correctStreak: 0,
+        lastWrongTime: today.toIso8601String(), nextReviewDate: dateStr(0));
+    final dueYesterday = WrongBook(questionId: 2, wrongCount: 1, correctStreak: 0,
+        lastWrongTime: today.toIso8601String(), nextReviewDate: dateStr(-1));
+    final notDueTomorrow = WrongBook(questionId: 3, wrongCount: 1, correctStreak: 0,
+        lastWrongTime: today.toIso8601String(), nextReviewDate: dateStr(1));
+
+    expect(dueToday.isDue, true);
+    expect(dueYesterday.isDue, true);
+    expect(notDueTomorrow.isDue, false);
+  });
+
+  test('getDueWrongQuestionIds excludes a question freshly scheduled for tomorrow', () async {
     final repo = UserDataRepository();
-    await repo.addWrong(1); // next_review_date = 明天，今天視為到期
+    await repo.addWrong(1); // next_review_date = 明天，今天還不算到期
     final ids = await repo.getDueWrongQuestionIds();
-    expect(ids, contains(1));
+    expect(ids, isNot(contains(1)));
   });
 }
