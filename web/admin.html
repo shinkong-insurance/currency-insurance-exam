@@ -132,7 +132,7 @@
 <!-- ══════════════ DASHBOARD ══════════════ -->
 <div id="dashboard">
   <div class="topbar">
-    <h1>🛡️ 後台管理 — 保險考照</h1>
+    <h1>🛡️ 後台管理 — 外幣保險考照</h1>
     <div style="display:flex;gap:8px;align-items:center">
       <span id="admin-label" style="color:var(--muted);font-size:12px"></span>
       <a href="admin-guide.html" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">📖 講師手冊</a>
@@ -646,7 +646,7 @@ async function sendLicenseEmail(studentId) {
   if (!s.email)     { alert('此學員未設定信箱'); return; }
   if (!s.key_code)  { alert('此學員尚未分配授權碼，請先編輯學員並指定授權碼'); return; }
 
-  const subject = encodeURIComponent('【新光人壽】業務員資格測驗學習APP — 授權碼通知');
+  const subject = encodeURIComponent('【外幣保險】資格測驗學習APP — 授權碼通知');
   const expStr  = s.expires_at?.substring(0,10) || '請洽管理員';
   const batchStr = s.batch_name || '一般學員';
   const body = encodeURIComponent(
@@ -657,7 +657,7 @@ async function sendLicenseEmail(studentId) {
     '有效期限：' + expStr + '\n\n' +
     '請至 APP 輸入上述授權碼以啟用學習功能。\n\n' +
     '若有任何問題，請聯繫訓練部門。\n\n' +
-    '祝學習順利！\n新光人壽教育訓練部'
+    '祝學習順利！\n教育訓練部'
   );
 
   window.open('mailto:' + s.email + '?subject=' + subject + '&body=' + body);
