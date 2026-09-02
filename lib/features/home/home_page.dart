@@ -164,6 +164,13 @@ class HomePage extends ConsumerWidget {
                   color: Colors.teal,
                   onTap: () => context.push('/levels'),
                 ),
+                _FeatureCard(
+                  icon: Icons.lightbulb_outline,
+                  title: '口訣卡',
+                  subtitle: '精選記憶口訣，濃縮重點好記好背',
+                  color: Colors.purple,
+                  onTap: () => context.push('/mnemonics'),
+                ),
                 const SizedBox(height: 20),
 
                 // ── 題庫練習 ──────────────────────────────────
