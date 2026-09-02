@@ -901,79 +901,110 @@ git commit -m "Structure raw question blocks into question/options/explanation/t
 
 ---
 
-## Task 7: Chapter classification via textbook page-range mapping
+## Task 7: Chapter classification via regulation-name content matching
+
+**Revision note (supersedes an earlier page-range-based version of this
+task):** the first implementation built `chapter_page_ranges.json` correctly
+(verified by direct page-by-page reading of the real 263-page slide deck —
+keep this file, it's still needed by Task 16's guide-image viewer, which
+maps slide-deck PAGES to chapters, an entirely separate concern from
+classifying QUESTIONS). But when used to classify questions via their
+`textbook_page` field, a rigorous cross-check (matching literal regulation
+names quoted in question text against the assigned chapter) found **0/84
+(100%) mismatch** — the question bank's own `參閱課本第N頁` page citations
+turn out not to reliably correspond to real page positions in the deck at
+all (verified: the same regulation article, cited by different exam-set
+variants of a near-duplicate question, pointed at two different pages, only
+one of which was correct — i.e. citation drift in the *source material*
+itself, not an extraction bug). Page-based classification of questions is
+therefore abandoned. This revision classifies each question by matching its
+own text against each chapter's regulation name directly — the same
+approach that correctly resolved all 84 cross-check cases with zero
+reliance on the unreliable page field.
 
 **Files:**
-- Create: `scripts/extract/chapter_page_ranges.json`(手動盤點,非程式產生)
+- Create: `scripts/extract/chapter_page_ranges.json`(手動盤點,非程式產生——仍然需要,供 Task 16 的教材頁碼對照使用,跟這裡的題目分類已經無關)
 - Create: `scripts/extract/classify_chapters.py`
 - Test: `scripts/extract/test_classify_chapters.py`
 
 **Interfaces:**
-- Consumes: `scripts/extract/output/questions_structured.json`(Task 6)、`chapter_page_ranges.json`
+- Consumes: `scripts/extract/output/questions_structured.json`(Task 6,讀 `question`/`explanation`,不再讀 `textbook_page`)
 - Produces: `scripts/extract/output/questions_with_chapter.json`(補上 `chapter_id`)
 
-- [ ] **Step 1:** 人工比對投影片(`外幣證照必勝寶典_授課簡報V1.pdf`)章節標題出現的頁碼,填寫 8 大主題的頁碼區間到 `chapter_page_ranges.json`。此步驟需要你或我實際翻投影片確認邊界,先用下列指令抓出候選章節標題位置起個頭:
-```bash
-pdftotext -layout ~/Documents/外幣/外幣證照必勝寶典_授課簡報V1.pdf - | \
-  grep -n "外幣保險開放紀事\|保險業辦理外匯業務管理辦法\|非投資型人身保險業務應具備資格\|管理外匯條例\|外匯收支或交易申報辦法\|投資型保險投資管理辦法\|保險業辦理國外投資管理辦法\|人身保險基本概念"
-```
-把結果對照頁碼,寫成:
+- [ ] **Step 1:** 承襲前一版已經人工核對過、逐頁讀過真實投影片確認的 `chapter_page_ranges.json`(不用重做,若檔案已存在直接沿用):
 ```json
 [
-  {"chapter_id": 1, "title": "外幣保險開放紀事", "page_start": 5, "page_end": 20},
-  {"chapter_id": 2, "title": "保險業辦理外匯業務管理辦法", "page_start": 21, "page_end": 50},
-  {"chapter_id": 3, "title": "非投資型人身保險業務應具備資格條件及注意事項", "page_start": 51, "page_end": 90},
-  {"chapter_id": 4, "title": "管理外匯條例", "page_start": 91, "page_end": 120},
-  {"chapter_id": 5, "title": "外匯收支或交易申報辦法", "page_start": 121, "page_end": 150},
-  {"chapter_id": 6, "title": "投資型保險投資管理辦法", "page_start": 151, "page_end": 190},
-  {"chapter_id": 7, "title": "保險業辦理國外投資管理辦法", "page_start": 191, "page_end": 230},
-  {"chapter_id": 8, "title": "人身保險基本概念及其他", "page_start": 231, "page_end": 263}
+  {"chapter_id": 1, "title": "外幣保險開放紀事", "page_start": 1, "page_end": 15},
+  {"chapter_id": 3, "title": "人身保險業辦理以外幣收付之非投資型人身保險業務應具備資格條件及注意事項", "page_start": 16, "page_end": 27},
+  {"chapter_id": 2, "title": "保險業辦理外匯業務管理辦法", "page_start": 28, "page_end": 50},
+  {"chapter_id": 6, "title": "投資型保險投資管理辦法", "page_start": 51, "page_end": 95},
+  {"chapter_id": 4, "title": "管理外匯條例", "page_start": 96, "page_end": 118},
+  {"chapter_id": 5, "title": "外匯收支或交易申報辦法", "page_start": 119, "page_end": 143},
+  {"chapter_id": 7, "title": "保險業辦理國外投資管理辦法", "page_start": 144, "page_end": 192},
+  {"chapter_id": 8, "title": "人身保險基本概念及其他", "page_start": 193, "page_end": 263}
 ]
 ```
-(以上頁碼為待你核對後修正的初稿,不可直接當最終值使用)
-- [ ] **Step 2:** 寫失敗測試
+- [ ] **Step 2:** 寫失敗測試,涵蓋:題目本文直接引用法規名稱可以分類、沒有引用任何已知法規名稱回傳 None、同一題同時出現兩個不同法規名稱時以先出現者為準
 ```python
 # scripts/extract/test_classify_chapters.py
-from classify_chapters import classify_page
+from classify_chapters import classify_by_content
 
-RANGES = [
-    {"chapter_id": 1, "page_start": 1, "page_end": 10},
-    {"chapter_id": 2, "page_start": 11, "page_end": 20},
-]
+def test_classifies_by_regulation_name_in_question():
+    q = "依「投資型保險投資管理辦法」第12條規定，保險人行使投資型保險專設帳簿持有股票之投票表決權者..."
+    assert classify_by_content(q, "") == 6
 
-def test_classifies_page_in_range():
-    assert classify_page(5, RANGES) == 1
-    assert classify_page(15, RANGES) == 2
+def test_classifies_by_regulation_name_in_explanation():
+    assert classify_by_content("下列何者正確？", "依「管理外匯條例」第4條規定，答案為第2項") == 4
 
-def test_returns_none_for_page_outside_all_ranges():
-    assert classify_page(999, RANGES) is None
+def test_returns_none_when_no_known_regulation_named():
+    assert classify_by_content("下列何者為外幣保險開放的正確歷程？", "詳見課程說明") is None
+
+def test_first_mentioned_regulation_wins_when_both_present():
+    q = "「保險業辦理外匯業務管理辦法」與「管理外匯條例」的關係為何？"
+    assert classify_by_content(q, "") == 2
 ```
-- [ ] **Step 3:** 確認失敗 → 實作 → 確認通過
+- [ ] **Step 3:** 確認失敗 → 實作(用每章唯一、可辨識的法規全名或關鍵子字串當比對樣式;第 1、8 章沒有單一法規名稱可比對,本來就分類不到,交給人工歸類)
 ```python
 # scripts/extract/classify_chapters.py
-def classify_page(page: int, ranges: list) -> int | None:
-    for r in ranges:
-        if r["page_start"] <= page <= r["page_end"]:
-            return r["chapter_id"]
-    return None
+import re
+
+# 依第一次出現的位置比對，所以放進 list 而非 dict（dict 在部分 Python 版本
+# 不保證插入順序在比對時被尊重；用 list 明確保證「先出現的法規優先」）
+_REGULATION_PATTERNS = [
+    (2, re.compile(r'保險業辦理外匯業務管理辦法')),
+    (3, re.compile(r'非投資型人身保險業務應具備資格條件及注意事項')),
+    (4, re.compile(r'管理外匯條例')),
+    (5, re.compile(r'外匯收支或交易申報辦法')),
+    (6, re.compile(r'投資型保險投資管理辦法')),
+    (7, re.compile(r'保險業辦理國外投資管理辦法')),
+]
+
+def classify_by_content(question: str, explanation: str):
+    combined = f"{question} {explanation}"
+    best_id, best_pos = None, None
+    for chapter_id, pattern in _REGULATION_PATTERNS:
+        m = pattern.search(combined)
+        if m and (best_pos is None or m.start() < best_pos):
+            best_id, best_pos = chapter_id, m.start()
+    return best_id
 ```
+- [ ] **Step 4:** 確認通過
 ```bash
 python3 -m pytest test_classify_chapters.py -v
 ```
-Expected: PASS。
-- [ ] **Step 4:** 全量套用,並印出「無法分類(頁碼缺失或落在區間外)」的題目清單供人工抽查
+Expected: 4 個測試全部 PASS。
+- [ ] **Step 5:** 全量套用,並印出「無法分類(題目與解析都沒有點名任何一個法規)」的題目清單供人工抽查。**這一步預期會有相當比例分類不到**(第1、8章本來就沒有單一法規名稱可比對,加上部分題目泛泛而論、沒有直接點名法規),這是預期中的行為,不是程式錯誤——把清單交給我人工歸類,不要為了衝高分類率硬湊關鍵字規則。
 ```python
 # scripts/extract/run_classify_chapters.py
 import json
 from pathlib import Path
-from classify_chapters import classify_page
+from classify_chapters import classify_by_content
 
-RANGES = json.loads((Path(__file__).parent / "chapter_page_ranges.json").read_text())
 QUESTIONS = json.loads((Path(__file__).parent / "output/questions_structured.json").read_text())
 
 classified, unclassified = [], []
 for q in QUESTIONS:
-    cid = classify_page(q["textbook_page"], RANGES) if q["textbook_page"] else None
+    cid = classify_by_content(q["question"], q["explanation"])
     if cid is None:
         unclassified.append(q)
     else:
@@ -984,13 +1015,13 @@ Path(__file__).parent.joinpath("output/questions_with_chapter.json").write_text(
     json.dumps(classified, ensure_ascii=False, indent=2))
 print(f"classified: {len(classified)}, unclassified: {len(unclassified)}")
 for q in unclassified[:20]:
-    print(f"  [{q['exam_set']}-{q['question_no']}] page={q['textbook_page']} {q['question'][:30]}")
+    print(f"  [{q['exam_set']}-{q['question_no']}] {q['question'][:40]}")
 ```
-Run 完把 unclassified 清單交給我人工確認頁碼區間是否需要調整。
-- [ ] **Step 5:** Commit
+Run 完之後,**對分類到的結果也要抽查 15-20 筆**(不只是印出未分類清單而已),實際讀題目內容確認分到的章節在主題上真的說得通,避免同一句話同時提到兩個法規、或法規名稱只是題目裡順帶提及但實際考點是別的規定這類誤判。把 unclassified 清單和抽查結果一起交給我人工確認。
+- [ ] **Step 6:** Commit
 ```bash
 git add scripts/extract/chapter_page_ranges.json scripts/extract/classify_chapters.py scripts/extract/test_classify_chapters.py scripts/extract/run_classify_chapters.py
-git commit -m "Classify questions into the 8 major chapters via textbook page-range mapping"
+git commit -m "Classify questions into the 8 major chapters via regulation-name content matching"
 ```
 
 ---
