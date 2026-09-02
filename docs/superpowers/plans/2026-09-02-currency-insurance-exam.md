@@ -2332,10 +2332,15 @@ class MnemonicCardListPage extends ConsumerWidget {
 flutter test test/features/mnemonics/mnemonic_card_list_page_test.dart
 ```
 Expected: 2 個測試 PASS。
-- [ ] **Step 5:** Commit
+- [ ] **Step 5:** 把頁面掛上路由,並在首頁加入口(Task 13 審查時發現同一種缺口:頁面做好但沒接路由/沒有入口,使用者永遠找不到——這裡直接照 Task 13 修正後的模式做,不要重蹈覆轍)。在 `lib/app/router.dart` 新增 `GoRoute(path: '/mnemonics', builder: (_, __) => const MnemonicCardListPage())`;在 `lib/features/home/home_page.dart` 比照「18 關卡地圖」那張卡片的樣式,新增一張導到 `/mnemonics` 的卡片,用 `context.push`(不是 `context.go`)。
 ```bash
-git add lib/models/mnemonic_card.dart lib/repositories/mnemonic_repository.dart lib/providers/mnemonic_provider.dart lib/features/mnemonics/mnemonic_card_list_page.dart test/features/mnemonics/mnemonic_card_list_page_test.dart
-git commit -m "Add mnemonic card browsing page (favorites deferred to a later iteration)"
+flutter test  # 確認加路由/入口沒有弄壞任何既有測試
+```
+Expected: 全部 PASS。
+- [ ] **Step 6:** Commit
+```bash
+git add lib/models/mnemonic_card.dart lib/repositories/mnemonic_repository.dart lib/providers/mnemonic_provider.dart lib/features/mnemonics/mnemonic_card_list_page.dart lib/app/router.dart lib/features/home/home_page.dart test/features/mnemonics/mnemonic_card_list_page_test.dart
+git commit -m "Add mnemonic card browsing page with home entry point (favorites deferred to a later iteration)"
 ```
 
 ---
