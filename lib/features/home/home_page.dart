@@ -103,7 +103,7 @@ class HomePage extends ConsumerWidget {
                                   style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold)),
-                              onTap: () => context.go('/quiz/0?review=true'),
+                              onTap: () => context.push('/quiz/0?review=true'),
                             ),
                           )
                         : const SizedBox.shrink(),

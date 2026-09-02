@@ -95,6 +95,8 @@ class _QuizPageState extends ConsumerState<QuizPage> {
         await userRepo.markReviewedWrong(q.id);
       }
       ref.invalidate(dueReviewCountProvider);
+      ref.invalidate(wrongIdsProvider); // 複習模式答對可能畢業移出錯題本，答錯則不影響歸屬，
+      // 兩種情況都一起 invalidate 較簡單；讀取到未變的 provider 只是一次低成本重抓。
     }
 
     setState(() {
