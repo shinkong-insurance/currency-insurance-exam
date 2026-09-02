@@ -541,7 +541,7 @@ git commit -m "Switch question content source from bundled JSON to Supabase with
 
 **Interfaces:**
 - Consumes: `/Users/fortune/Documents/外幣/外幣題庫_ABECD卷整理(含新增)V1.pdf`(唯讀,不修改原始檔案)
-- Produces: `scripts/extract/output/raw_blocks.json` — 一個 list,每筆 `{exam_set, block_index, raw_text}`,供 Task 6 進一步結構化。這一步**只切段、不解析欄位**,目的是先用可驗證的方式確保沒有文字遺漏或錯位。
+- Produces: `scripts/extract/output/raw_blocks.json` — 一個 list,每筆 `{exam_set, question_no, answer, raw_text}`(題號與答案本來就印在題庫每題最前面兩欄,切段時順手一併取出,不算「解析欄位」;真正要留到後面才做的是拆 `question`/`options`/`explanation`),供 Task 5、6 進一步處理。這一步**只切段、不拆解題目內容**,目的是先用可驗證的方式確保沒有文字遺漏或錯位。
 
 - [ ] **Step 1:** 寫失敗測試(用一段已知的真實文字 fixture 斷言切段結果)
 ```python
