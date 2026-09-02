@@ -1280,8 +1280,16 @@ class WrongBook {
     'next_review_date': nextReviewDate,
   };
 
-  bool get isDue => DateTime.parse(nextReviewDate).isBefore(
-      DateTime.now().add(const Duration(days: 1)));
+  // 用純日期（不含時分秒）比較：nextReviewDate <= 今天才算到期。
+  // 原本寫成 DateTime.now().add(Duration(days: 1)) 會讓「排到明天」的題目
+  // 幾乎整天都被誤判成「今天就到期」（因為 nextReviewDate 解析出來是明天
+  // 00:00:00，而比較基準是明天的當下時刻，前者幾乎必然早於後者）——等於
+  // 才剛答錯排到隔天複習，馬上又被算進今日待複習，完全違背間隔複習的用意。
+  bool get isDue {
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+    return !DateTime.parse(nextReviewDate).isAfter(todayMidnight);
+  }
 }
 ```
 - [ ] **Step 2:** 寫失敗測試,涵蓋 spec §8.4 的三個狀態轉移
@@ -1441,20 +1449,37 @@ static Future<void> updateWrong(
   } catch (_) {}
 }
 ```
-- [ ] **Step 5:** 補上 `getDueWrongQuestionIds` 的測試(跟 Step 2 的其他案例合併在同一個測試檔內)
+- [ ] **Step 5:** 補上 `isDue` 語意的直接單元測試,以及 `getDueWrongQuestionIds` 的測試(跟 Step 2 的其他案例合併在同一個測試檔內)。`isDue` 的正確語意是「`nextReviewDate` 為今天或更早才算到期」——直接用 model 建構子測邊界值,比透過 `addWrong`(只會排到明天)間接測更能鎖定這個語意,`addWrong` 那條路徑用來確認「剛排到明天的題目今天還不算到期」這個相反的斷言。
 ```dart
-  test('getDueWrongQuestionIds returns only due question ids', () async {
+  test('isDue is true only when nextReviewDate is today or earlier', () {
+    final today = DateTime.now();
+    String dateStr(int offsetDays) =>
+        today.add(Duration(days: offsetDays)).toIso8601String().substring(0, 10);
+
+    final dueToday = WrongBook(questionId: 1, wrongCount: 1, correctStreak: 0,
+        lastWrongTime: today.toIso8601String(), nextReviewDate: dateStr(0));
+    final dueYesterday = WrongBook(questionId: 2, wrongCount: 1, correctStreak: 0,
+        lastWrongTime: today.toIso8601String(), nextReviewDate: dateStr(-1));
+    final notDueTomorrow = WrongBook(questionId: 3, wrongCount: 1, correctStreak: 0,
+        lastWrongTime: today.toIso8601String(), nextReviewDate: dateStr(1));
+
+    expect(dueToday.isDue, true);
+    expect(dueYesterday.isDue, true);
+    expect(notDueTomorrow.isDue, false);
+  });
+
+  test('getDueWrongQuestionIds excludes a question freshly scheduled for tomorrow', () async {
     final repo = UserDataRepository();
-    await repo.addWrong(1); // next_review_date = 明天，今天視為到期
+    await repo.addWrong(1); // next_review_date = 明天，今天還不算到期
     final ids = await repo.getDueWrongQuestionIds();
-    expect(ids, contains(1));
+    expect(ids, isNot(contains(1)));
   });
 ```
 - [ ] **Step 6:** 確認通過
 ```bash
 flutter test test/repositories/user_data_repository_wrongbook_test.dart
 ```
-Expected: 6 個測試全部 PASS。
+Expected: 7 個測試全部 PASS。
 - [ ] **Step 7:** Commit
 ```bash
 git add lib/models/wrong_book.dart lib/repositories/user_data_repository.dart lib/core/database/shared_preferences_store.dart lib/core/services/cloud_sync_service.dart test/repositories/user_data_repository_wrongbook_test.dart
