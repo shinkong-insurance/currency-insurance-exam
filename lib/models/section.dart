@@ -21,6 +21,14 @@ class Section {
         content: json['content'],
       );
 
+  factory Section.fromSupabaseRow(Map<String, dynamic> row) => Section(
+        id: row['id'],
+        chapterId: row['chapter_id'],
+        order: row['order'],
+        title: row['title'],
+        content: row['content'],
+      );
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'chapterId': chapterId,

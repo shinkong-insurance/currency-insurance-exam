@@ -21,6 +21,14 @@ class Chapter {
     weight: json['weight'],
   );
 
+  factory Chapter.fromSupabaseRow(Map<String, dynamic> row) => Chapter(
+    id: row['id'],
+    courseId: row['course_id'],
+    unitNo: row['unit_no'],
+    title: row['title'],
+    weight: row['weight'],
+  );
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'courseId': courseId,

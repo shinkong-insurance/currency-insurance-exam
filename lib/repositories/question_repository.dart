@@ -1,26 +1,99 @@
-import '../core/services/json_loader.dart';
+import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/services/content_cache_store.dart';
 import '../models/chapter.dart';
 import '../models/question.dart';
 import '../models/section.dart';
 
+abstract class ContentSource {
+  Future<List<Map<String, dynamic>>> fetchQuestions();
+  Future<List<Map<String, dynamic>>> fetchChapters();
+  Future<List<Map<String, dynamic>>> fetchSections();
+}
+
+class SupabaseContentSource implements ContentSource {
+  final _sb = Supabase.instance.client;
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchQuestions() async =>
+      List<Map<String, dynamic>>.from(await _sb.from('questions').select());
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchChapters() async =>
+      List<Map<String, dynamic>>.from(await _sb.from('chapters').select());
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchSections() async =>
+      List<Map<String, dynamic>>.from(await _sb.from('sections').select());
+}
+
 class QuestionRepository {
+  final ContentSource source;
+  final ContentCacheStore cache;
   List<Chapter>? _chapters;
   List<Question>? _questions;
   List<Section>? _sections;
 
-  Future<List<Chapter>> getChapters() async {
-    _chapters ??= await JsonLoader.loadChapters();
-    return _chapters!;
-  }
+  QuestionRepository({ContentSource? source, ContentCacheStore? cache})
+      : source = source ?? SupabaseContentSource(),
+        cache = cache ?? ContentCacheStore(SharedPreferences.getInstance());
 
   Future<List<Question>> getAllQuestions() async {
-    _questions ??= await JsonLoader.loadQuestions();
+    if (_questions != null) return _questions!;
+    var rows = await cache.read('questions');
+    rows ??= await source.fetchQuestions();
+    unawaited(_refreshQuestionsInBackground());
+    _questions = rows.map((r) => Question.fromSupabaseRow(r)).toList();
     return _questions!;
   }
 
+  Future<void> _refreshQuestionsInBackground() async {
+    try {
+      final fresh = await source.fetchQuestions();
+      await cache.write('questions', fresh);
+      _questions = fresh.map((r) => Question.fromSupabaseRow(r)).toList();
+    } catch (_) {
+      // 背景刷新失敗不影響已顯示的內容
+    }
+  }
+
+  Future<List<Chapter>> getChapters() async {
+    if (_chapters != null) return _chapters!;
+    var rows = await cache.read('chapters');
+    rows ??= await source.fetchChapters();
+    unawaited(_refreshChaptersInBackground());
+    _chapters = rows.map((r) => Chapter.fromSupabaseRow(r)).toList();
+    return _chapters!;
+  }
+
+  Future<void> _refreshChaptersInBackground() async {
+    try {
+      final fresh = await source.fetchChapters();
+      await cache.write('chapters', fresh);
+      _chapters = fresh.map((r) => Chapter.fromSupabaseRow(r)).toList();
+    } catch (_) {
+      // 背景刷新失敗不影響已顯示的內容
+    }
+  }
+
   Future<List<Section>> getAllSections() async {
-    _sections ??= await JsonLoader.loadSections();
+    if (_sections != null) return _sections!;
+    var rows = await cache.read('sections');
+    rows ??= await source.fetchSections();
+    unawaited(_refreshSectionsInBackground());
+    _sections = rows.map((r) => Section.fromSupabaseRow(r)).toList();
     return _sections!;
+  }
+
+  Future<void> _refreshSectionsInBackground() async {
+    try {
+      final fresh = await source.fetchSections();
+      await cache.write('sections', fresh);
+      _sections = fresh.map((r) => Section.fromSupabaseRow(r)).toList();
+    } catch (_) {
+      // 背景刷新失敗不影響已顯示的內容
+    }
   }
 
   Future<List<Section>> getSectionsByChapter(int chapterId) async {
