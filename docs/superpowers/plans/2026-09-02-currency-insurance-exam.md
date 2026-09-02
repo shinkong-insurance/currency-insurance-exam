@@ -1568,32 +1568,94 @@ Consumer(builder: (context, ref, _) {
 flutter test test/features/home/home_due_badge_test.dart
 ```
 Expected: PASS。
-- [ ] **Step 5:** 寫失敗測試,驗證 `QuizPage` 的複習模式行為(答對呼叫 `markReviewedCorrect`、答錯呼叫 `markReviewedWrong`、且不影響章節 `progress`)
+- [ ] **Step 5:** 寫失敗測試,驗證 `QuizPage` 的複習模式行為(答對呼叫 `markReviewedCorrect`、答錯呼叫 `markReviewedWrong`、且不影響章節 `progress`)。**注意**:`UserDataRepository.addWrong()` 一律把 `next_review_date` 排到明天(Task 10 修正 `isDue` 語意後的正確行為),所以不能像其他任務那樣單純呼叫 `addWrong(1)` 就假設題目「立刻到期」——這裡要直接寫入一筆 `next_review_date` 是昨天的錯題本紀錄,才能讓複習模式真的載入到這題。另外 `SharedPreferencesStore` 是手刻的 process-wide singleton(`_instance ??=`/`_prefs ??=`),同一個測試檔案裡第二次呼叫 `SharedPreferences.setMockInitialValues()` 對它不會生效——用 `SharedPreferencesStore.instance.prefs` 直接寫入才能確保每個測試互相隔離。
 ```dart
 // test/features/quiz/quiz_review_mode_test.dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:currency_insurance_exam/core/database/shared_preferences_store.dart';
 import 'package:currency_insurance_exam/features/quiz/quiz_page.dart';
+import 'package:currency_insurance_exam/providers/question_provider.dart';
 import 'package:currency_insurance_exam/providers/user_data_provider.dart';
+import 'package:currency_insurance_exam/repositories/question_repository.dart';
 import 'package:currency_insurance_exam/repositories/user_data_repository.dart';
+import '../../repositories/fakes/fake_supabase_content_source.dart';
+
+Future<void> _seedDueWrongQuestion(int questionId) async {
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferencesStore.instance.prefs;
+  final yesterday = DateTime.now().subtract(const Duration(days: 1))
+      .toIso8601String().substring(0, 10);
+  await prefs.setString('wrong_book', '{"$questionId": {'
+      '"question_id": $questionId, "wrong_count": 1, "correct_streak": 0, '
+      '"last_wrong_time": "$yesterday", "next_review_date": "$yesterday"}}');
+}
+
+ProviderScope _harness({required Widget child}) {
+  final fakeSource = FakeSupabaseContentSource(questionRows: [
+    {
+      'id': 1, 'chapter_id': 101, 'question_no': 1, 'question': '測試複習題目',
+      'options': ['A', 'B', 'C', 'D'], 'answer': 1, 'explanation': '',
+      'keyword_hint': null, 'plain_explanation': null, 'textbook_page': null,
+    }
+  ]);
+  return ProviderScope(
+    overrides: [
+      questionRepositoryProvider.overrideWithValue(
+        QuestionRepository(source: fakeSource, cache: ContentCacheStore.inMemory()),
+      ),
+    ],
+    child: child,
+  );
+}
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
-
   testWidgets('review mode title shows 今日複習 and does not touch chapter progress', (tester) async {
+    await _seedDueWrongQuestion(1);
     final repo = UserDataRepository();
-    await repo.addWrong(1); // 讓題目1進入錯題本並到期
 
-    await tester.pumpWidget(ProviderScope(
-      overrides: [userDataRepositoryProvider.overrideWithValue(repo)],
+    await tester.pumpWidget(_harness(
       child: const MaterialApp(home: QuizPage(chapterId: 0, isReviewMode: true)),
     ));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('今日複習'), findsOneWidget);
+    // 先不作答，直接檢查目前 progress 沒有寫入 chapterId 0
     final progress = await repo.getProgress();
-    expect(progress.containsKey(0), isFalse); // chapterId 0 是複習模式的佔位值，不應寫入任何章節進度
+    expect(progress.containsKey(0), isFalse);
+  });
+
+  testWidgets('correct answer in review mode calls markReviewedCorrect (streak 0→1)', (tester) async {
+    await _seedDueWrongQuestion(1);
+    final repo = UserDataRepository();
+
+    await tester.pumpWidget(_harness(
+      child: const MaterialApp(home: QuizPage(chapterId: 0, isReviewMode: true)),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('A')); // 對應 answer: 1 的正確選項
+    await tester.pumpAndSettle();
+
+    final books = await repo.getWrongBooks();
+    expect(books.first.correctStreak, 1); // 只有 markReviewedCorrect 會把 streak 推到 1
+  });
+
+  testWidgets('wrong answer in review mode calls markReviewedWrong (streak resets to 0)', (tester) async {
+    await _seedDueWrongQuestion(1);
+    final repo = UserDataRepository();
+
+    await tester.pumpWidget(_harness(
+      child: const MaterialApp(home: QuizPage(chapterId: 0, isReviewMode: true)),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('B')); // 錯誤選項
+    await tester.pumpAndSettle();
+
+    final books = await repo.getWrongBooks();
+    expect(books.first.correctStreak, 0); // markReviewedWrong 呼叫 addWrong，streak 歸零
   });
 }
 ```
