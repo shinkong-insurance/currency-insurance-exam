@@ -90,6 +90,28 @@ class HomePage extends ConsumerWidget {
                 // 使用手冊入口
                 const _ManualBanner(),
                 const SizedBox(height: 12),
+                // 今日待複習徽章
+                Consumer(builder: (context, ref, _) {
+                  final due = ref.watch(dueReviewCountProvider);
+                  return due.when(
+                    data: (count) => count > 0
+                        ? Card(
+                            child: ListTile(
+                              leading: const Text('📌',
+                                  style: TextStyle(fontSize: 24)),
+                              title: Text('今日待複習 $count 題',
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold)),
+                              onTap: () => context.go('/quiz/0?review=true'),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  );
+                }),
+                const SizedBox(height: 12),
                 // 授權 Banner
                 if (auth != null && auth.isLoggedIn) ...[
                   _AuthBanner(auth: auth),
@@ -126,8 +148,7 @@ class HomePage extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // ── 學習教材 ──────────────────────────────────
-                _SectionHeader(
-                    title: '學習教材與練習', icon: Icons.auto_stories),
+                _SectionHeader(title: '學習教材與練習', icon: Icons.auto_stories),
                 const SizedBox(height: 10),
                 _FeatureCard(
                   icon: Icons.menu_book,
@@ -219,25 +240,20 @@ class HomePage extends ConsumerWidget {
                 _FeatureCard(
                   icon: Icons.error_outline,
                   title: '錯題本',
-                  subtitle: wrongCount > 0
-                      ? '共 $wrongCount 題需複習'
-                      : '目前沒有錯題，繼續加油！',
+                  subtitle:
+                      wrongCount > 0 ? '共 $wrongCount 題需複習' : '目前沒有錯題，繼續加油！',
                   color: Colors.red,
                   badge: wrongCount > 0 ? '$wrongCount' : null,
-                  onTap: wrongCount > 0
-                      ? () => context.push('/wrongbook')
-                      : null,
+                  onTap:
+                      wrongCount > 0 ? () => context.push('/wrongbook') : null,
                 ),
                 _FeatureCard(
                   icon: Icons.bookmark,
                   title: '收藏題目',
-                  subtitle: favCount > 0
-                      ? '已收藏 $favCount 題'
-                      : '尚未收藏任何題目',
+                  subtitle: favCount > 0 ? '已收藏 $favCount 題' : '尚未收藏任何題目',
                   color: Colors.amber,
                   badge: favCount > 0 ? '$favCount' : null,
-                  onTap:
-                      favCount > 0 ? () => context.push('/favorite') : null,
+                  onTap: favCount > 0 ? () => context.push('/favorite') : null,
                 ),
                 _FeatureCard(
                   icon: Icons.bar_chart,
@@ -267,13 +283,11 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon,
-            size: 18, color: Theme.of(context).colorScheme.primary),
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 6),
         Text(
           title,
-          style: const TextStyle(
-              fontSize: 16, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -340,23 +354,18 @@ class _FeatureCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
-          backgroundColor:
-              (enabled ? color : Colors.grey).withOpacity(0.15),
+          backgroundColor: (enabled ? color : Colors.grey).withOpacity(0.15),
           child: Icon(icon, color: enabled ? color : Colors.grey),
         ),
         title: Text(title,
             style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: enabled ? null : Colors.grey)),
-        subtitle: Text(subtitle,
-            style: const TextStyle(fontSize: 12)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
         trailing: badge != null
-            ? Badge(
-                label: Text(badge!),
-                child: const Icon(Icons.chevron_right))
+            ? Badge(label: Text(badge!), child: const Icon(Icons.chevron_right))
             : Icon(Icons.chevron_right,
                 color: enabled ? null : Colors.grey[300]),
         onTap: onTap,
@@ -395,8 +404,7 @@ class _ManualBanner extends StatelessWidget {
               color: cs.primary.withOpacity(0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.menu_book_outlined,
-                color: cs.primary, size: 22),
+            child: Icon(Icons.menu_book_outlined, color: cs.primary, size: 22),
           ),
           const SizedBox(width: 12),
           const Expanded(
@@ -404,8 +412,8 @@ class _ManualBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('考生使用手冊',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14)),
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 SizedBox(height: 2),
                 Text('APP 功能介紹 · 操作說明 · 考試資訊',
                     style: TextStyle(fontSize: 11, color: Colors.grey)),

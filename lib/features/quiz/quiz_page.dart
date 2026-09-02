@@ -11,12 +11,14 @@ class QuizPage extends ConsumerStatefulWidget {
   final int chapterId;
   final bool isWrongBook;
   final bool isFavorite;
+  final bool isReviewMode;
 
   const QuizPage({
     super.key,
     required this.chapterId,
     this.isWrongBook = false,
     this.isFavorite = false,
+    this.isReviewMode = false,
   });
 
   @override
@@ -43,7 +45,10 @@ class _QuizPageState extends ConsumerState<QuizPage> {
     final userRepo = ref.read(userDataRepositoryProvider);
     List<Question> qs;
 
-    if (widget.isWrongBook) {
+    if (widget.isReviewMode) {
+      final dueIds = await userRepo.getDueWrongQuestionIds();
+      qs = dueIds.isEmpty ? [] : await repo.getQuestionsByIds(dueIds);
+    } else if (widget.isWrongBook) {
       final wrongIds = await userRepo.getWrongQuestionIds();
       qs = wrongIds.isEmpty ? [] : await repo.getQuestionsByIds(wrongIds);
     } else if (widget.isFavorite) {
@@ -64,7 +69,8 @@ class _QuizPageState extends ConsumerState<QuizPage> {
 
   Future<void> _checkFav() async {
     if (_questions.isEmpty) return;
-    final fav = await ref.read(userDataRepositoryProvider)
+    final fav = await ref
+        .read(userDataRepositoryProvider)
         .isFavorite(_questions[_currentIndex].id);
     if (mounted) setState(() => _isFav = fav);
   }
@@ -77,9 +83,18 @@ class _QuizPageState extends ConsumerState<QuizPage> {
 
     if (isCorrect) {
       _correctCount++;
-    } else {
+    } else if (!widget.isReviewMode) {
       await userRepo.addWrong(q.id);
       ref.invalidate(wrongIdsProvider); // 通知首頁更新錯題計數
+    }
+
+    if (widget.isReviewMode) {
+      if (isCorrect) {
+        await userRepo.markReviewedCorrect(q.id);
+      } else {
+        await userRepo.markReviewedWrong(q.id);
+      }
+      ref.invalidate(dueReviewCountProvider);
     }
 
     setState(() {
@@ -121,12 +136,12 @@ class _QuizPageState extends ConsumerState<QuizPage> {
   }
 
   Future<void> _saveProgressAndFinish() async {
-    if (!widget.isWrongBook && !widget.isFavorite) {
+    if (!widget.isWrongBook && !widget.isFavorite && !widget.isReviewMode) {
       await ref.read(userDataRepositoryProvider).updateProgress(
-        widget.chapterId,
-        _questions.length,
-        _correctCount,
-      );
+            widget.chapterId,
+            _questions.length,
+            _correctCount,
+          );
       ref.invalidate(progressProvider);
     }
     if (mounted) {
@@ -137,7 +152,10 @@ class _QuizPageState extends ConsumerState<QuizPage> {
           content: Text('答題完成\n正確：$_correctCount / ${_questions.length}'),
           actions: [
             TextButton(
-              onPressed: () { Navigator.pop(context); context.pop(); },
+              onPressed: () {
+                Navigator.pop(context);
+                context.pop();
+              },
               child: const Text('返回'),
             ),
           ],
@@ -148,10 +166,13 @@ class _QuizPageState extends ConsumerState<QuizPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_loading)
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (_questions.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('題庫練習')),
+        appBar: AppBar(
+          title: Text(widget.isReviewMode ? '今日複習' : '題庫練習'),
+        ),
         body: const Center(child: Text('目前沒有題目')),
       );
     }
@@ -165,19 +186,26 @@ class _QuizPageState extends ConsumerState<QuizPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.isWrongBook
-                  ? '錯題本'
-                  : widget.isFavorite
-                      ? '收藏題目'
-                      : ref.watch(chaptersProvider).valueOrNull
-                              ?.firstWhere(
-                                (c) => c.id == widget.chapterId,
-                                orElse: () => Chapter(
-                                  id: 0, courseId: 1, unitNo: 1,
-                                  title: '章節練習', weight: ''),
-                              )
-                              .title ??
-                          '章節練習',
+              widget.isReviewMode
+                  ? '今日複習'
+                  : widget.isWrongBook
+                      ? '錯題本'
+                      : widget.isFavorite
+                          ? '收藏題目'
+                          : ref
+                                  .watch(chaptersProvider)
+                                  .valueOrNull
+                                  ?.firstWhere(
+                                    (c) => c.id == widget.chapterId,
+                                    orElse: () => Chapter(
+                                        id: 0,
+                                        courseId: 1,
+                                        unitNo: 1,
+                                        title: '章節練習',
+                                        weight: ''),
+                                  )
+                                  .title ??
+                              '章節練習',
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -211,38 +239,47 @@ class _QuizPageState extends ConsumerState<QuizPage> {
                   // Question number chip
                   Chip(
                     label: Text('第 ${q.questionNo} 題'),
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
                   ),
                   const SizedBox(height: 12),
                   // Question text
                   Text(q.question,
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500,
+                      style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
                           height: 1.6)),
                   const SizedBox(height: 20),
                   // Options
-                  ...List.generate(4, (i) => _OptionTile(
-                    index: i,
-                    text: q.options[i],
-                    selected: _selectedAnswer == i + 1,
-                    isCorrect: q.answer == i + 1,
-                    showResult: _showAnswer,
-                    onTap: () => _submitAnswer(i + 1),
-                  )),
+                  ...List.generate(
+                      4,
+                      (i) => _OptionTile(
+                            index: i,
+                            text: q.options[i],
+                            selected: _selectedAnswer == i + 1,
+                            isCorrect: q.answer == i + 1,
+                            showResult: _showAnswer,
+                            onTap: () => _submitAnswer(i + 1),
+                          )),
                   // Explanation
                   if (_showAnswer && q.explanation.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('解析', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const Text('解析',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 6),
-                          Text(q.explanation, style: const TextStyle(height: 1.5)),
+                          Text(q.explanation,
+                              style: const TextStyle(height: 1.5)),
                         ],
                       ),
                     ),
@@ -269,13 +306,15 @@ class _QuizPageState extends ConsumerState<QuizPage> {
                       onPressed: () => _submitAnswer(0),
                       icon: const Icon(Icons.visibility),
                       label: const Text('顯示答案'),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.grey),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey),
                     ),
                   if (_showAnswer)
                     ElevatedButton.icon(
                       onPressed: _nextQuestion,
                       icon: const Icon(Icons.arrow_forward),
-                      label: Text(_currentIndex < _questions.length - 1 ? '下一題' : '完成'),
+                      label: Text(
+                          _currentIndex < _questions.length - 1 ? '下一題' : '完成'),
                     ),
                 ],
               ),
@@ -332,14 +371,16 @@ class _OptionTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: bgColor ?? Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: borderColor ?? Colors.transparent, width: 1.5),
+          border:
+              Border.all(color: borderColor ?? Colors.transparent, width: 1.5),
         ),
         child: Row(
           children: [
             Text(labels[index],
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: borderColor ?? Theme.of(context).colorScheme.primary)),
+                    color:
+                        borderColor ?? Theme.of(context).colorScheme.primary)),
             const SizedBox(width: 10),
             Expanded(child: Text(text, style: const TextStyle(height: 1.4))),
             if (showResult && isCorrect)

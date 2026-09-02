@@ -52,7 +52,7 @@ final appRouter = GoRouter(
   routes: [
     // ── 授權頁 ──────────────────────────────
     GoRoute(path: '/license', builder: (_, __) => const LicenseGatePage()),
-    GoRoute(path: '/lk',      builder: (_, __) => const LkGatePage()),
+    GoRoute(path: '/lk', builder: (_, __) => const LkGatePage()),
     GoRoute(
       path: '/expired',
       builder: (_, state) => LicenseExpiredPage(
@@ -62,7 +62,7 @@ final appRouter = GoRouter(
 
     // ── 管理後台 ────────────────────────────
     GoRoute(path: '/admin-login', builder: (_, __) => const AdminLoginPage()),
-    GoRoute(path: '/admin',       builder: (_, __) => const AdminDashboardPage()),
+    GoRoute(path: '/admin', builder: (_, __) => const AdminDashboardPage()),
 
     // ── 主功能頁 ────────────────────────────
     GoRoute(path: '/', builder: (_, __) => const HomePage()),
@@ -86,6 +86,7 @@ final appRouter = GoRouter(
         chapterId: int.parse(state.pathParameters['chapterId']!),
         isWrongBook: state.uri.queryParameters['wrong'] == 'true',
         isFavorite: state.uri.queryParameters['fav'] == 'true',
+        isReviewMode: state.uri.queryParameters['review'] == 'true',
       ),
     ),
     GoRoute(
@@ -109,9 +110,9 @@ final appRouter = GoRouter(
         return ExamResultPage(result: extra);
       },
     ),
-    GoRoute(path: '/wrongbook',    builder: (_, __) => const WrongBookPage()),
-    GoRoute(path: '/favorite',     builder: (_, __) => const FavoritePage()),
-    GoRoute(path: '/progress',     builder: (_, __) => const ProgressPage()),
+    GoRoute(path: '/wrongbook', builder: (_, __) => const WrongBookPage()),
+    GoRoute(path: '/favorite', builder: (_, __) => const FavoritePage()),
+    GoRoute(path: '/progress', builder: (_, __) => const ProgressPage()),
     GoRoute(path: '/image-review', builder: (_, __) => const ImageReviewPage()),
   ],
 );

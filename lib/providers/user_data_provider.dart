@@ -21,3 +21,7 @@ final progressProvider = FutureProvider<Map<int, Map<String, int>>>((ref) {
 final examRecordsProvider = FutureProvider<List<ExamRecord>>((ref) {
   return ref.read(userDataRepositoryProvider).getExamRecords();
 });
+
+final dueReviewCountProvider = FutureProvider<int>((ref) {
+  return ref.read(userDataRepositoryProvider).getDueReviewCount();
+});
