@@ -33,3 +33,4 @@ flutter:
     - assets/images/guide/
     - assets/images/chapters/
     - assets/guides/
+    - assets/json/
