@@ -231,24 +231,6 @@ class _LkGatePageState extends State<LkGatePage> {
               ),
             ),
           ),
-
-          // ── 右上角管理員入口 ───────────────────
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Tooltip(
-                  message: '管理員後台',
-                  child: IconButton(
-                    icon: const Icon(Icons.admin_panel_settings,
-                        color: Colors.white12, size: 22),
-                    onPressed: () => context.push('/admin-login'),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

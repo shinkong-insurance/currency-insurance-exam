@@ -65,7 +65,7 @@ class _ExamPageState extends ConsumerState<ExamPage> {
 
     if (mounted) {
       setState(() { _questions = qs; _loading = false; });
-      _startTimer();
+      if (qs.isNotEmpty) _startTimer();
     }
   }
 
