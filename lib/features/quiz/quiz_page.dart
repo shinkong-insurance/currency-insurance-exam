@@ -7,6 +7,7 @@ import '../../providers/question_provider.dart';
 import '../../providers/user_data_provider.dart';
 import '../../providers/level_provider.dart';
 import '../../repositories/user_data_repository.dart';
+import 'widgets/explanation_panel.dart';
 
 class QuizPage extends ConsumerStatefulWidget {
   final int chapterId;
@@ -279,28 +280,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
                             onTap: () => _submitAnswer(i + 1),
                           )),
                   // Explanation
-                  if (_showAnswer && q.explanation.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('解析',
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 6),
-                          Text(q.explanation,
-                              style: const TextStyle(height: 1.5)),
-                        ],
-                      ),
-                    ),
-                  ],
+                  if (_showAnswer) ExplanationPanel(question: q),
                   const SizedBox(height: 80),
                 ],
               ),
