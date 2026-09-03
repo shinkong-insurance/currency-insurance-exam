@@ -4,7 +4,7 @@ import '../../../models/question.dart';
 /// 顯示作答後的解析區塊：
 /// - 🎯 關鍵字破題（`keywordHint`，若有）
 /// - 💬 白話告訴你為什麼（`plainExplanation`，若有；Task 17 尚未產製前為 null，不顯示）
-/// - 📖 法規解析（原本的 `explanation`，一律顯示）
+/// - 📖 法規解析（原本的 `explanation`，若有；空字串不顯示）
 class ExplanationPanel extends StatelessWidget {
   final Question question;
   const ExplanationPanel({super.key, required this.question});
@@ -32,8 +32,11 @@ class ExplanationPanel extends StatelessWidget {
             children: [Padding(padding: const EdgeInsets.all(12),
                 child: Text(question.plainExplanation!, style: textStyle))],
           ),
-        Padding(padding: const EdgeInsets.all(12),
-            child: Text('📖 法規解析:${question.explanation}', style: textStyle)),
+        // 114 題中有 21 題的 explanation 是空字串，沒有這道防護會只印出
+        // 「📖 法規解析:」標題、下面空無一物。
+        if (question.explanation.isNotEmpty)
+          Padding(padding: const EdgeInsets.all(12),
+              child: Text('📖 法規解析:${question.explanation}', style: textStyle)),
       ]),
     );
   }
