@@ -2402,23 +2402,29 @@ class ExplanationPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const textStyle = TextStyle(fontSize: 16, height: 1.6);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (question.keywordHint != null && question.keywordHint!.isNotEmpty)
-        ExpansionTile(
-          title: const Text('🎯 關鍵字破題', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          initiallyExpanded: true,
-          children: [Padding(padding: const EdgeInsets.all(12),
-              child: Text(question.keywordHint!, style: textStyle))],
-        ),
-      if (question.plainExplanation != null && question.plainExplanation!.isNotEmpty)
-        ExpansionTile(
-          title: const Text('💬 白話告訴你為什麼', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          children: [Padding(padding: const EdgeInsets.all(12),
-              child: Text(question.plainExplanation!, style: textStyle))],
-        ),
-      Padding(padding: const EdgeInsets.all(12),
-          child: Text('📖 法規解析:${question.explanation}', style: textStyle)),
-    ]);
+    // ExpansionTile 內部的 ListTile 需要一個 Material 祖先才能畫出點擊回饋，
+    // 單獨用 MaterialApp(home: ExplanationPanel(...)) 這種方式測試時不會自動
+    // 提供（quiz_page.dart 本身的 Scaffold 有提供，所以包在這裡也不會有副作用）。
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (question.keywordHint != null && question.keywordHint!.isNotEmpty)
+          ExpansionTile(
+            title: const Text('🎯 關鍵字破題', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            initiallyExpanded: true,
+            children: [Padding(padding: const EdgeInsets.all(12),
+                child: Text(question.keywordHint!, style: textStyle))],
+          ),
+        if (question.plainExplanation != null && question.plainExplanation!.isNotEmpty)
+          ExpansionTile(
+            title: const Text('💬 白話告訴你為什麼', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            children: [Padding(padding: const EdgeInsets.all(12),
+                child: Text(question.plainExplanation!, style: textStyle))],
+          ),
+        Padding(padding: const EdgeInsets.all(12),
+            child: Text('📖 法規解析:${question.explanation}', style: textStyle)),
+      ]),
+    );
   }
 }
 ```
