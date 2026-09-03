@@ -9,7 +9,8 @@ void main() {
       {
         'id': 1, 'chapter_id': 101, 'question_no': 1, 'question': '測試題目',
         'options': ['A', 'B', 'C', 'D'], 'answer': 2, 'explanation': '解析',
-        'keyword_hint': '關鍵詞', 'plain_explanation': '簡單說明', 'textbook_page': 5,
+        'keyword_hint': '關鍵詞', 'plain_explanation': '簡單說明',
+        'plain_explanation_reviewed': true, 'textbook_page': 5,
       }
     ]);
     final repo = QuestionRepository(
@@ -26,6 +27,45 @@ void main() {
     expect(questions.first.textbookPage, 5);
     expect(questions.first.keywordHint, '關鍵詞');
     expect(questions.first.plainExplanation, '簡單說明');
+  });
+
+  // I4 閘門：plain_explanation 是人工審核前的草稿，plain_explanation_reviewed
+  // 為 false（或欄位不存在）時絕對不能流到學生眼前。
+  test('plain_explanation is withheld until plain_explanation_reviewed is true',
+      () async {
+    final fakeSource = FakeSupabaseContentSource(questionRows: [
+      {
+        'id': 1, 'chapter_id': 101, 'question_no': 1, 'question': '未審核',
+        'options': ['A', 'B', 'C', 'D'], 'answer': 2, 'explanation': '解析',
+        'keyword_hint': '關鍵詞', 'plain_explanation': '尚未審核的草稿',
+        'plain_explanation_reviewed': false, 'textbook_page': 5,
+      },
+      {
+        'id': 2, 'chapter_id': 101, 'question_no': 2, 'question': '欄位缺失',
+        'options': ['A', 'B', 'C', 'D'], 'answer': 2, 'explanation': '解析',
+        'keyword_hint': '關鍵詞', 'plain_explanation': '舊快取沒有旗標',
+        'textbook_page': 5,
+      },
+      {
+        'id': 3, 'chapter_id': 101, 'question_no': 3, 'question': '已審核',
+        'options': ['A', 'B', 'C', 'D'], 'answer': 2, 'explanation': '解析',
+        'keyword_hint': '關鍵詞', 'plain_explanation': '已審核可顯示',
+        'plain_explanation_reviewed': true, 'textbook_page': 5,
+      },
+    ]);
+    final repo = QuestionRepository(
+      source: fakeSource,
+      cache: ContentCacheStore.inMemory(),
+    );
+
+    final questions = await repo.getAllQuestions();
+
+    // reviewed = false -> 不顯示
+    expect(questions[0].plainExplanation, isNull);
+    // 欄位缺失 -> fail-closed，不顯示
+    expect(questions[1].plainExplanation, isNull);
+    // reviewed = true -> 顯示
+    expect(questions[2].plainExplanation, '已審核可顯示');
   });
 
   test('getChapters parses chapter rows correctly', () async {
