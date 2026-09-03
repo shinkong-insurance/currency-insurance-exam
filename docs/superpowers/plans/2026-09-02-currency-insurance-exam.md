@@ -2454,18 +2454,20 @@ git commit -m "Add keyword-hint and plain-explanation panels to quiz result view
 - Test: `scripts/extract/test_build_guide_pages.py`
 
 **Interfaces:**
-- Consumes: `~/Documents/外幣/外幣證照必勝寶典_授課簡報V1.pdf`(263頁)、`chapter_page_ranges.json`(Task 7)
-- Produces: `assets/images/guide/guide_pXXX.png`(263張)、`assets/json/guide_pages.json`(比照壽險版格式,供既有教材翻頁閱讀器元件直接重用,不需改 UI 程式碼)
+- Consumes: `~/Documents/外幣/外幣證照必勝寶典_授課簡報_20260805V1線上.pdf`(263頁)、`chapter_page_ranges.json`(Task 7)
+- Produces: `assets/images/guide/guide_pXXX.png`(263張,約60MB,直接進 git)、`assets/json/guide_pages.json`(比照壽險版格式,供既有教材翻頁閱讀器元件直接重用,不需改 UI 程式碼;但要把 `assets/json/` 加回 `pubspec.yaml` 的 asset 清單,見 Step 6)
 
-- [ ] **Step 1:** 轉圖(機械操作,無需先寫測試,但轉完要斷言張數)
+- [ ] **Step 1:** 轉圖(機械操作,無需先寫測試,但轉完要斷言張數)。**兩個修正**:(1) 真實檔名是 `外幣證照必勝寶典_授課簡報_20260805V1線上.pdf`,不是這裡簡寫的 `V1.pdf`;(2) 輸出路徑要用腳本自己所在位置回推,不要寫死絕對路徑——寫死路徑在 worktree 環境下會寫到別的 checkout 去。另外 `pdftoppm` 預設檔名會帶一個 `-` 分隔號(`guide_p-001.png`),跟壽險版既有的 `guide_p001.png`(無分隔號)命名不一致,要加 `-sep ""` 才能維持「不用改 UI 程式碼」這個前提。
 ```bash
 # scripts/extract/convert_guide_images.sh
 #!/bin/bash
 set -euo pipefail
-SRC=~/Documents/外幣/外幣證照必勝寶典_授課簡報V1.pdf
-OUT=/Users/fortune/currency-insurance-exam/assets/images/guide
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SRC=~/Documents/外幣/外幣證照必勝寶典_授課簡報_20260805V1線上.pdf
+OUT="$REPO_ROOT/assets/images/guide"
 mkdir -p "$OUT"
-pdftoppm -png -r 150 "$SRC" "$OUT/guide_p"
+pdftoppm -png -r 150 -sep "" "$SRC" "$OUT/guide_p"
 COUNT=$(ls "$OUT"/guide_p*.png | wc -l | tr -d ' ')
 echo "converted $COUNT pages"
 test "$COUNT" -eq 263
@@ -2504,23 +2506,41 @@ def build_guide_pages(ranges: list) -> dict:
 python3 -m pytest test_build_guide_pages.py -v
 ```
 Expected: PASS。
-- [ ] **Step 5:** 對真實 `chapter_page_ranges.json` 跑,輸出到 `assets/json/guide_pages.json`
+- [ ] **Step 5:** 對真實 `chapter_page_ranges.json` 跑,輸出到 `assets/json/guide_pages.json`(路徑一樣改成相對腳本位置回推,不要寫死主 checkout 的絕對路徑)
 ```python
 # scripts/extract/run_build_guide_pages.py
 import json
 from pathlib import Path
 from build_guide_pages import build_guide_pages
 
+repo_root = Path(__file__).resolve().parent.parent.parent
 ranges = json.loads((Path(__file__).parent / "chapter_page_ranges.json").read_text())
 result = build_guide_pages(ranges)
-out = Path("/Users/fortune/currency-insurance-exam/assets/json/guide_pages.json")
+out = repo_root / "assets/json/guide_pages.json"
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(json.dumps(result, ensure_ascii=False, indent=2))
 print(f"guide_pages.json written, {len(result['chapters'])} chapters")
 ```
-- [ ] **Step 6:** Commit(圖片檔案量大,確認 `.gitignore` 或 git-lfs 策略再 commit;若暫不確定,先跟我確認要不要把 263 張圖進 git 還是改放物件儲存)
+- [ ] **Step 6:** 把 `assets/json/` 加回 `pubspec.yaml` 的 `flutter.assets` 清單。Task 1 把這行整個移除過(因為當時題目/章節內容全部改走 Supabase,不再打包成靜態 JSON),但 `guide_pages.json` 是例外——既有教材翻頁閱讀器元件是透過 `rootBundle` 直接讀這個檔案(不是打 Supabase),不把 `assets/json/` 加回去的話,這個檔案在真正建置的 app 裡會讀不到,閱讀器會直接壞掉。
+```yaml
+# pubspec.yaml（flutter.assets 清單，在既有幾行後面加一行）
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/images/guide/
+    - assets/images/chapters/
+    - assets/guides/
+    - assets/json/
+```
 ```bash
-git add scripts/extract/convert_guide_images.sh scripts/extract/build_guide_pages.py scripts/extract/test_build_guide_pages.py scripts/extract/run_build_guide_pages.py assets/json/guide_pages.json
+flutter pub get
+flutter test  # 確認加資產清單沒有弄壞任何既有測試
+```
+Expected: 全部 PASS。
+- [ ] **Step 7:** Commit 程式碼、資料與圖片。**圖片總量實際量測後約 60MB(263張、150 DPI),這個大小可以直接進 git**(這個 repo 沒有設 git-lfs,60MB 對一次性、幾乎不會再變動的靜態教材圖片來說是可接受的,直接 commit,不需要另外導入物件儲存或調降解析度——維持跟壽險版一樣「教材圖片直接當 Flutter asset 包進 app」的做法,架構上更一致)。
+```bash
+git add scripts/extract/convert_guide_images.sh scripts/extract/build_guide_pages.py scripts/extract/test_build_guide_pages.py scripts/extract/run_build_guide_pages.py assets/json/guide_pages.json assets/images/guide/*.png pubspec.yaml pubspec.lock
 git commit -m "Add guide slide deck to page-image conversion and chapter page-range mapping"
 ```
 
