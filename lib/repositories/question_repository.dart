@@ -123,32 +123,22 @@ class QuestionRepository {
     return pool.take(count).toList();
   }
 
-  /// 依科目隨機抽題
-  /// courseId 1 = 保險實務 (chapterId 101-107)
-  /// courseId 2 = 保險法規 (chapterId 201-301)
-  Future<List<Question>> getRandomQuestionsByCourse(int count, int courseId) async {
-    final all = await getAllQuestions();
-    final pool = all.where((q) => q.chapterId ~/ 100 == courseId).toList();
-    pool.shuffle();
-    return pool.take(count).toList();
-  }
-
-  /// 錯題優先組題：先將本科目錯題全數納入，再以隨機同科目題目補足 count 題。
+  /// 錯題優先組題：先將錯題全數納入，再以隨機題目補足 count 題。
   /// 結果打亂順序，確保考生無法從位置判斷哪些是錯題。
-  /// wrongIds：當前錯題本中所有題目的 id（不限科目，此處自動篩選）
+  /// wrongIds：當前錯題本中所有題目的 id
+  ///
+  /// 註：本 APP 沒有「保險實務 / 保險法規」兩科之分（那是壽險姊妹 APP 的結構），
+  /// 所以不再依 courseId 篩選；題目一律取自完整題庫。
   Future<List<Question>> getExamQuestionsWithWrongPriority(
     int count,
-    int courseId,
     List<int> wrongIds,
   ) async {
     final all = await getAllQuestions();
-    final coursePool = all.where((q) => q.chapterId ~/ 100 == courseId).toList();
 
     final wrongSet = wrongIds.toSet();
-    // 本科目的錯題
-    final wrongQs = coursePool.where((q) => wrongSet.contains(q.id)).toList();
-    // 本科目的非錯題（隨機補位用）
-    final randomPool = coursePool.where((q) => !wrongSet.contains(q.id)).toList()
+    final wrongQs = all.where((q) => wrongSet.contains(q.id)).toList();
+    // 非錯題（隨機補位用）
+    final randomPool = all.where((q) => !wrongSet.contains(q.id)).toList()
       ..shuffle();
 
     final result = <Question>[];

@@ -11,17 +11,13 @@ import '../../core/services/study_logger.dart';
 class ExamPage extends ConsumerStatefulWidget {
   final int count;
   final int? chapterId;
-  final int? courseId;    // 1=保險實務, 2=保險法規
-  final bool wrongPriority; // 優先納入錯題本中該科目的題目
-  final String? paperName;  // 卷別名稱（如「保險實務A卷」），顯示於 AppBar 與記錄
+  final bool wrongPriority; // 優先納入錯題本中的題目
 
   const ExamPage({
     super.key,
     required this.count,
     this.chapterId,
-    this.courseId,
     this.wrongPriority = false,
-    this.paperName,
   });
 
   @override
@@ -58,15 +54,11 @@ class _ExamPageState extends ConsumerState<ExamPage> {
     final userRepo = ref.read(userDataRepositoryProvider);
     List<Question> qs;
 
-    if (widget.wrongPriority && widget.courseId != null) {
+    if (widget.wrongPriority) {
       // 取得當前全部錯題 id，並記錄快照（交卷時用來判斷哪些是錯題）
       final wrongIds = await userRepo.getWrongQuestionIds();
       _wrongIdsAtStart = wrongIds.toSet();
-      qs = await repo.getExamQuestionsWithWrongPriority(
-        widget.count, widget.courseId!, wrongIds,
-      );
-    } else if (widget.courseId != null) {
-      qs = await repo.getRandomQuestionsByCourse(widget.count, widget.courseId!);
+      qs = await repo.getExamQuestionsWithWrongPriority(widget.count, wrongIds);
     } else {
       qs = await repo.getRandomQuestions(widget.count, chapterId: widget.chapterId);
     }
@@ -197,11 +189,8 @@ class _ExamPageState extends ConsumerState<ExamPage> {
     ref.invalidate(wrongIdsProvider);
 
     final score = (correct / _questions.length * 100).round();
-    final subjectTag = widget.courseId == 1 ? '保險實務 ' : widget.courseId == 2 ? '保險法規 ' : '';
     final timeStamp = DateTime.now().toString().substring(0, 16);
-    final examName = widget.paperName != null
-        ? '${widget.paperName} $timeStamp'
-        : '模擬考 $subjectTag${widget.count}題 $timeStamp';
+    final examName = '模擬考 ${widget.count}題 $timeStamp';
     await userRepo.saveExamRecord(
       ExamRecord(
         examName: examName,
@@ -215,13 +204,11 @@ class _ExamPageState extends ConsumerState<ExamPage> {
     ref.invalidate(examRecordsProvider);
 
     // 記錄學習事件
-    final isMock = widget.paperName != null || widget.count >= 50;
     StudyLogger.quizSession(
       questionsTotal: _questions.length,
       questionsCorrect: correct,
       chapterId: widget.chapterId,
-      courseId: widget.courseId,
-      isMockExam: isMock,
+      isMockExam: widget.count >= 50,
     );
 
     if (mounted) {
@@ -240,14 +227,26 @@ class _ExamPageState extends ConsumerState<ExamPage> {
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
+    // 空題庫防護：按章節出的模擬考很容易抽不到題（例如目前第 1、8 章都還沒有
+    // 種入題目），沒有這道防護會直接以 RangeError 崩潰。
+    if (_questions.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('模擬考')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('此範圍暫無題目', style: TextStyle(fontSize: 18)),
+          ),
+        ),
+      );
+    }
+
     final q = _questions[_currentIndex];
     final selected = _answers[_currentIndex];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.paperName != null
-            ? '${widget.paperName}  ${_currentIndex + 1}/${_questions.length}'
-            : '模擬考 ${_currentIndex + 1}/${_questions.length}'),
+        title: Text('模擬考 ${_currentIndex + 1}/${_questions.length}'),
         actions: [
           TextButton(
             onPressed: _submitExam,

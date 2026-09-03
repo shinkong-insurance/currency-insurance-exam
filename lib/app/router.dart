@@ -83,11 +83,7 @@ final appRouter = GoRouter(
         chapterId: state.uri.queryParameters['chapter'] != null
             ? int.parse(state.uri.queryParameters['chapter']!)
             : null,
-        courseId: state.uri.queryParameters['courseId'] != null
-            ? int.parse(state.uri.queryParameters['courseId']!)
-            : null,
         wrongPriority: state.uri.queryParameters['wrongPriority'] == 'true',
-        paperName: state.uri.queryParameters['paper'],
       ),
     ),
     GoRoute(
