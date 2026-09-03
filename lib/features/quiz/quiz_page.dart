@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/chapter.dart';
+import '../../models/level.dart';
 import '../../models/question.dart';
 import '../../providers/question_provider.dart';
 import '../../providers/user_data_provider.dart';
@@ -32,11 +33,25 @@ class QuizPage extends ConsumerStatefulWidget {
 class _QuizPageState extends ConsumerState<QuizPage> {
   List<Question> _questions = [];
   int _currentIndex = 0;
-  int? _selectedAnswer;
-  bool _showAnswer = false;
   bool _isFav = false;
   bool _loading = true;
   int _correctCount = 0;
+
+  /// 關卡模式下的關卡本身（用於 AppBar 標題與及格門檻）。
+  Level? _level;
+
+  /// 已作答題目：題目索引 -> 該題選擇的答案（顯示答案為 0）。
+  ///
+  /// 這裡刻意用「每題索引各自記錄」而不是單一的 `_showAnswer` bool（對照
+  /// ExamPage 的 `_answers` 也是同樣形狀）：舊版按「上一題」會把 `_showAnswer`
+  /// 重設成 false，於是回到已答過的題目再答一次，所有副作用會重跑一遍——
+  /// 複習模式會重複呼叫 markReviewedCorrect/markReviewedWrong（streak 連跳，
+  /// 錯題可能提前畢業）、關卡模式的 _correctCount 會超過題數（存進去的
+  /// correct 大於 attempted）、一般模式則會灌水 wrong_count。
+  final Map<int, int> _answeredSelections = {};
+
+  bool get _showAnswer => _answeredSelections.containsKey(_currentIndex);
+  int? get _selectedAnswer => _answeredSelections[_currentIndex];
 
   @override
   void initState() {
@@ -51,6 +66,7 @@ class _QuizPageState extends ConsumerState<QuizPage> {
 
     if (widget.levelId != null) {
       final level = await ref.read(levelByIdProvider(widget.levelId!).future);
+      _level = level;
       qs = level == null ? [] : await repo.getQuestionsByIds(level.questionIds);
     } else if (widget.isReviewMode) {
       final dueIds = await userRepo.getDueWrongQuestionIds();
@@ -83,10 +99,17 @@ class _QuizPageState extends ConsumerState<QuizPage> {
   }
 
   Future<void> _submitAnswer(int answer) async {
-    if (_showAnswer) return;
-    final q = _questions[_currentIndex];
+    // 這題已經答過就完全不動作：畫面本來就已經在顯示上次的作答結果，
+    // 任何計分/複習排程的副作用都不該再跑第二次。
+    if (_answeredSelections.containsKey(_currentIndex)) return;
+    final answeredIndex = _currentIndex;
+    final q = _questions[answeredIndex];
     final isCorrect = answer == q.answer;
     final userRepo = ref.read(userDataRepositoryProvider);
+
+    // 先同步記錄「這題已作答」再跑任何 await，否則在下面的 await 之間連點兩下
+    // 會有兩次呼叫同時通過上面那道檢查，副作用還是會跑兩遍。
+    setState(() => _answeredSelections[answeredIndex] = answer);
 
     if (isCorrect) {
       _correctCount++;
@@ -105,11 +128,6 @@ class _QuizPageState extends ConsumerState<QuizPage> {
       ref.invalidate(wrongIdsProvider); // 複習模式答對可能畢業移出錯題本，答錯則不影響歸屬，
       // 兩種情況都一起 invalidate 較簡單；讀取到未變的 provider 只是一次低成本重抓。
     }
-
-    setState(() {
-      _selectedAnswer = answer;
-      _showAnswer = true;
-    });
   }
 
   Future<void> _toggleFav() async {
@@ -120,13 +138,11 @@ class _QuizPageState extends ConsumerState<QuizPage> {
     if (mounted) setState(() => _isFav = fav);
   }
 
+  // 前後移動只改變 index：該題是否已作答、選了什麼，都由
+  // _answeredSelections 查表決定，不再靠一個共用的可變旗標。
   void _nextQuestion() {
     if (_currentIndex < _questions.length - 1) {
-      setState(() {
-        _currentIndex++;
-        _selectedAnswer = null;
-        _showAnswer = false;
-      });
+      setState(() => _currentIndex++);
       _checkFav();
     } else {
       _saveProgressAndFinish();
@@ -135,18 +151,18 @@ class _QuizPageState extends ConsumerState<QuizPage> {
 
   void _prevQuestion() {
     if (_currentIndex > 0) {
-      setState(() {
-        _currentIndex--;
-        _selectedAnswer = null;
-        _showAnswer = false;
-      });
+      setState(() => _currentIndex--);
       _checkFav();
     }
   }
 
   Future<void> _saveProgressAndFinish() async {
     if (widget.levelId != null) {
-      final passed = _questions.isNotEmpty && (_correctCount / _questions.length) >= 0.7;
+      // 用該關卡自己的門檻，不要寫死 0.7。目前每一關都是 0.7，所以這行今天沒有
+      // 行為差異，但之後新增門檻不同的關卡就不會踩到。
+      final threshold = _level?.passThreshold ?? 0.7;
+      final passed =
+          _questions.isNotEmpty && (_correctCount / _questions.length) >= threshold;
       await ref.read(levelRepositoryProvider).saveLevelProgress(
             widget.levelId!,
             attempted: _questions.length,
@@ -210,7 +226,11 @@ class _QuizPageState extends ConsumerState<QuizPage> {
                       ? '錯題本'
                       : widget.isFavorite
                           ? '收藏題目'
-                          : ref
+                          // 關卡模式顯示關卡自己的名稱（共 18 關，考生需要知道
+                          // 自己在第幾關），而不是退回通用的「章節練習」。
+                          : widget.levelId != null
+                              ? (_level?.label ?? '第 ${widget.levelId} 關')
+                              : ref
                                   .watch(chaptersProvider)
                                   .valueOrNull
                                   ?.firstWhere(
