@@ -32,35 +32,16 @@ class ChapterListPage extends ConsumerWidget {
           final allSecs = allSecAsync.valueOrNull ?? [];
           final progress = progressAsync.valueOrNull ?? {};
 
-          final unit1 = chapters.where((c) => c.unitNo == 1).toList();
-          final unit2 = chapters.where((c) => c.unitNo == 2).toList();
-          final unit3 = chapters.where((c) => c.unitNo == 3).toList();
+          // 本 APP 的章節結構是扁平的 8 個主題（spec §3），沒有「單元」概念；
+          // schema 中的 unitNo 是逐章設成 chapter_id（見 scripts/seed/seed_content.py），
+          // 所以不做任何分組，直接依 id 排序後平鋪呈現。
+          final sorted = [...chapters]..sort((a, b) => a.id.compareTo(b.id));
 
           return ListView(
             children: [
-              _UnitHeader(
-                title: '第一單元：保險實務',
-                color: const Color(0xFF1565C0),
-              ),
               ..._buildChapterTiles(
-                  context, unit1, allQs, allSecs, progress,
+                  context, sorted, allQs, allSecs, progress,
                   const Color(0xFF1565C0)),
-              _UnitHeader(
-                title: '第二單元：保險法規',
-                color: const Color(0xFF2E7D32),
-              ),
-              ..._buildChapterTiles(
-                  context, unit2, allQs, allSecs, progress,
-                  const Color(0xFF2E7D32)),
-              if (unit3.isNotEmpty) ...[
-                _UnitHeader(
-                  title: '附錄',
-                  color: const Color(0xFF6A1B9A),
-                ),
-                ..._buildChapterTiles(
-                    context, unit3, allQs, allSecs, progress,
-                    const Color(0xFF6A1B9A)),
-              ],
               const SizedBox(height: 20),
             ],
           );
@@ -186,34 +167,6 @@ class _TabHint extends StatelessWidget {
       child: Text(
         '點擊章節可查看教材與練習題',
         style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-      ),
-    );
-  }
-}
-
-class _UnitHeader extends StatelessWidget {
-  final String title;
-  final Color color;
-
-  const _UnitHeader({required this.title, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 16, 12, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(10),
-        border: Border(left: BorderSide(color: color, width: 3)),
-      ),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: color,
-          fontSize: 13,
-        ),
       ),
     );
   }
