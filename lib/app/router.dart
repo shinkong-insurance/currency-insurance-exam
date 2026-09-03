@@ -2,13 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../core/services/web_auth_service.dart';
 import '../core/services/lk_auth_service.dart';
-import '../features/auth/license_gate_page.dart';
 import '../features/auth/lk_gate_page.dart';
 import '../features/auth/license_expired_page.dart';
-import '../features/admin/admin_login_page.dart';
-import '../features/admin/admin_dashboard_page.dart';
 import '../features/home/home_page.dart';
 import '../features/chapter/chapter_list_page.dart';
 import '../features/chapter/chapter_detail_page.dart';
@@ -21,31 +17,22 @@ import '../features/exam/exam_result_page.dart';
 import '../features/wrongbook/wrong_book_page.dart';
 import '../features/favorite/favorite_page.dart';
 import '../features/progress/progress_page.dart';
-import '../features/image_review/image_review_page.dart';
 
 // ──────────────────────────────────────────────
-// 授權守衛（支援兩種登入模式）
+// 授權守衛（授權碼登入）
 // ──────────────────────────────────────────────
 Future<String?> _authGuard(BuildContext context, GoRouterState state) async {
   final loc = state.matchedLocation;
 
   // 免驗證頁面直接放行
-  if (loc == '/license' ||
-      loc == '/lk' ||
-      loc == '/expired' ||
-      loc == '/admin-login' ||
-      loc == '/admin') return null;
+  if (loc == '/lk' || loc == '/expired') return null;
 
-  // ① 身分證版 session
-  final user = await WebAuthService.getSession();
-  if (user != null) return null;
-
-  // ② 授權碼版 session
+  // 授權碼版 session
   final lkSession = await LkAuthService.getSession();
   if (lkSession != null) return null;
 
-  // 兩者皆無 → 導向身分證登入頁（預設）
-  return '/license';
+  // 無 session → 導向授權碼登入頁
+  return '/lk';
 }
 
 final appRouter = GoRouter(
@@ -53,7 +40,6 @@ final appRouter = GoRouter(
   redirect: _authGuard,
   routes: [
     // ── 授權頁 ──────────────────────────────
-    GoRoute(path: '/license', builder: (_, __) => const LicenseGatePage()),
     GoRoute(path: '/lk', builder: (_, __) => const LkGatePage()),
     GoRoute(
       path: '/expired',
@@ -61,10 +47,6 @@ final appRouter = GoRouter(
         message: state.uri.queryParameters['msg'] ?? '使用期限已到，請聯絡管理員',
       ),
     ),
-
-    // ── 管理後台 ────────────────────────────
-    GoRoute(path: '/admin-login', builder: (_, __) => const AdminLoginPage()),
-    GoRoute(path: '/admin', builder: (_, __) => const AdminDashboardPage()),
 
     // ── 主功能頁 ────────────────────────────
     GoRoute(path: '/', builder: (_, __) => const HomePage()),
@@ -120,6 +102,5 @@ final appRouter = GoRouter(
     GoRoute(path: '/wrongbook', builder: (_, __) => const WrongBookPage()),
     GoRoute(path: '/favorite', builder: (_, __) => const FavoritePage()),
     GoRoute(path: '/progress', builder: (_, __) => const ProgressPage()),
-    GoRoute(path: '/image-review', builder: (_, __) => const ImageReviewPage()),
   ],
 );

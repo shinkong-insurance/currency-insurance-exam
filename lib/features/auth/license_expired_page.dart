@@ -3,7 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/services/web_auth_service.dart';
+import '../../core/services/lk_auth_service.dart';
 
 class LicenseExpiredPage extends StatelessWidget {
   final String message;
@@ -48,8 +48,11 @@ class LicenseExpiredPage extends StatelessWidget {
                 const SizedBox(height: 32),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    await WebAuthService.clearSession();
-                    if (context.mounted) context.go('/license');
+                    // LkAuthService 的清除 session 方法叫 logout()（等同舊
+                    // WebAuthService.clearSession()：清掉 SharedPreferences
+                    // 中的 session，但保留 device id）。
+                    await LkAuthService.logout();
+                    if (context.mounted) context.go('/lk');
                   },
                   icon: const Icon(Icons.logout, color: Colors.white54),
                   label: const Text('重新驗證身份',

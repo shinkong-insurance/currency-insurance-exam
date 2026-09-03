@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../providers/user_data_provider.dart';
 import '../../providers/question_provider.dart';
 import '../../providers/section_provider.dart';
-import '../../providers/auth_provider.dart';
 import '../../core/open_url.dart';
 
 class HomePage extends ConsumerWidget {
@@ -12,8 +11,6 @@ class HomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authAsync = ref.watch(examAuthProvider);
-    final auth = authAsync.valueOrNull;
     final wrongIds = ref.watch(wrongIdsProvider);
     final favIds = ref.watch(favoriteIdsProvider);
     final allQs = ref.watch(allQuestionsProvider);
@@ -112,11 +109,6 @@ class HomePage extends ConsumerWidget {
                   );
                 }),
                 const SizedBox(height: 12),
-                // 授權 Banner
-                if (auth != null && auth.isLoggedIn) ...[
-                  _AuthBanner(auth: auth),
-                  const SizedBox(height: 12),
-                ],
                 // Stats row
                 Row(
                   children: [
@@ -440,69 +432,6 @@ class _ManualBanner extends StatelessWidget {
             label: const Text('查看', style: TextStyle(fontSize: 13)),
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────
-// 授權 Banner：顯示梯次 / 剩餘天數
-// ──────────────────────────────────────────────
-class _AuthBanner extends StatelessWidget {
-  final ExamAuthState auth;
-  const _AuthBanner({required this.auth});
-
-  @override
-  Widget build(BuildContext context) {
-    final days = auth.daysLeft;
-    final isExpiringSoon = days <= 7;
-    final color = auth.isExpired
-        ? Colors.red
-        : isExpiringSoon
-            ? Colors.orange
-            : Colors.teal;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            auth.isExpired ? Icons.lock_outline : Icons.verified_user_outlined,
-            color: color,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  auth.batchName ?? '已授權',
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-                if (auth.expiresAt != null)
-                  Text(
-                    auth.isExpired
-                        ? '授權已到期'
-                        : '有效至 ${auth.expiresAt!.year}/${auth.expiresAt!.month.toString().padLeft(2, "0")}/${auth.expiresAt!.day.toString().padLeft(2, "0")}（剩 $days 天）',
-                    style: TextStyle(
-                      color: color.withOpacity(0.8),
-                      fontSize: 11,
-                    ),
-                  ),
-              ],
             ),
           ),
         ],
