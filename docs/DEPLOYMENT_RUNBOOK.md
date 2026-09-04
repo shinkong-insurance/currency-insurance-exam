@@ -97,13 +97,15 @@ seeded 18 levels
 
 ### 4a. 白話解析（114 題，已有腳本可用）
 
-先自己（或請可信任的人）核對至少 20% 的內容，對照
-`scripts/generate/plain_explanation_batch.md` 和對應章節的
-`scripts/generate/output/chapter_<N>_plain_explanations.json`（N = 2,3,4,5,6,7）。
-**已先做過一輪自動抽查，結果見 `scripts/generate/plain_explanation_spotcheck_2026-09-04.md`
-——裡面列出 21 題「原始說明是空的」高風險清單（建議優先全查，不要只抽 20%）
-跟一個確定的格式缺陷（id 100），麻煩從那份報告的建議處理順序開始。**
-確認沒問題後，逐章節執行：
+**2026-09-04 更新：`scripts/generate/plain_explanation_spotcheck_2026-09-04.md`
+點名的 21 題高風險清單 + 8 題中風險清單 + 1 題格式缺陷，都已對照
+`/Users/fortune/Documents/外幣/外幣證照必勝寶典_授課簡報_20260805V1線上.pdf`
+（課程簡報裡逐條列出的法規原文）逐題核對過，找到並修正了 2 個真實錯誤
+（id 100 格式缺陷、id 52 內容錯誤），細節見該報告文末「後續處理紀錄」段落。**
+剩下沒做的是：這次核對用的是課程簡報摘要，不是主管機關發布的正式法規全文，
+理論上仍有極小機率簡報摘錄本身有誤；建議您（或可信任的人）還是抽個 5-10 題
+親自看一眼 `scripts/generate/output/chapter_<N>_plain_explanations.json`
+（N = 2,3,4,5,6,7）當最後一道保險，確認沒問題後，逐章節執行：
 
 ```bash
 export SUPABASE_URL=https://xxxxxxxx.supabase.co
