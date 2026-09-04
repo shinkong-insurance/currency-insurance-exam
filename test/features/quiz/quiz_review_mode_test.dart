@@ -28,7 +28,7 @@ import '../../repositories/fakes/fake_supabase_content_source.dart';
 Future<void> _seedWrongBook(Map<String, dynamic> entries) async {
   final prefs = await SharedPreferencesStore.instance.prefs;
   await prefs.clear();
-  await prefs.setString('wrong_book', json.encode(entries));
+  await prefs.setString('fx_wrong_book', json.encode(entries));
 }
 
 Map<String, dynamic> _dueEntry(int questionId, {int correctStreak = 0}) {

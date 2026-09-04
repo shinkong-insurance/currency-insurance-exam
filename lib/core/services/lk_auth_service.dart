@@ -26,12 +26,16 @@ class LkLoginResponse {
 }
 
 // ── SharedPreferences 儲存 key ─────────────────
-const _kLkKeyId      = 'lk_key_id';
-const _kLkKeyCode    = 'lk_key_code';
-const _kLkBatchName  = 'lk_batch_name';
-const _kLkExpiresAt  = 'lk_expires_at';
-const _kLkDeviceId   = 'lk_device_id';
-const _kLkLoggedIn   = 'lk_logged_in';
+// 'fx_' 前綴：見 shared_preferences_store.dart 的說明——insurance-exam-app
+// 部署在同一個 GitHub Pages 網域下，共用 localStorage，沒有前綴的話兩個
+// app 的登入 session 會互相污染（可能出現「明明沒登入這個 app 卻顯示已
+// 登入」的狀況）。
+const _kLkKeyId      = 'fx_lk_key_id';
+const _kLkKeyCode    = 'fx_lk_key_code';
+const _kLkBatchName  = 'fx_lk_batch_name';
+const _kLkExpiresAt  = 'fx_lk_expires_at';
+const _kLkDeviceId   = 'fx_lk_device_id';
+const _kLkLoggedIn   = 'fx_lk_logged_in';
 
 class LkAuthService {
   static final _sb = Supabase.instance.client;

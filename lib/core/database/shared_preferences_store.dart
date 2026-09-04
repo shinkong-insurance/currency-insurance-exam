@@ -43,7 +43,11 @@ class SharedPreferencesStore {
   }
 
   // ── Wrong Book ───────────────────────────────────────────────
-  static const _kWrongBook = 'wrong_book';
+  // 'fx_' 前綴：這個 repo 是從 insurance-exam-app scaffold 出來的，兩個 app
+  // 部署在同一個 GitHub Pages 網域下（只是路徑不同），瀏覽器 localStorage
+  // 是照網域算、不分路徑，沒有前綴的話兩個 app 的本機快取/錯題本/收藏會
+  // 互相污染（2026-09-04 實測上線時發現）。
+  static const _kWrongBook = 'fx_wrong_book';
 
   Future<Map<String, dynamic>> getWrongBook() => _getMap(_kWrongBook);
 
@@ -85,7 +89,7 @@ class SharedPreferencesStore {
   }
 
   // ── Favorites ────────────────────────────────────────────────
-  static const _kFavorites = 'favorites';
+  static const _kFavorites = 'fx_favorites';
 
   Future<List<int>> getFavoriteIds() async {
     final list = await _getList(_kFavorites);
@@ -108,7 +112,7 @@ class SharedPreferencesStore {
   }
 
   // ── Study Progress ───────────────────────────────────────────
-  static const _kProgress = 'study_progress';
+  static const _kProgress = 'fx_study_progress';
 
   Future<Map<String, dynamic>> _getRawProgress() => _getMap(_kProgress);
 
@@ -139,7 +143,7 @@ class SharedPreferencesStore {
   }
 
   // ── Exam Records ─────────────────────────────────────────────
-  static const _kExamRecords = 'exam_records';
+  static const _kExamRecords = 'fx_exam_records';
 
   Future<List<Map<String, dynamic>>> getExamRecordsRaw() async {
     final list = await _getList(_kExamRecords);

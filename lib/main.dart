@@ -29,10 +29,14 @@ void main() async {
       await _pullCloudDataToLocal(store);
     } else {
       // ── 非 LK 模式：每次開啟清除學習資料 ──
-      await prefs.remove('wrong_book');
-      await prefs.remove('favorites');
-      await prefs.remove('study_progress');
-      await prefs.remove('exam_records');
+      // 'fx_' 前綴：跟 shared_preferences_store.dart 用的 key 要完全一致
+      // （見該檔案開頭的說明），這裡是直接操作 SharedPreferences 而非透過
+      // SharedPreferencesStore 的方法，所以沒辦法共用同一份常數定義，
+      // 前綴打錯會讓這裡清不到真正的資料。
+      await prefs.remove('fx_wrong_book');
+      await prefs.remove('fx_favorites');
+      await prefs.remove('fx_study_progress');
+      await prefs.remove('fx_exam_records');
     }
   }
 
@@ -52,7 +56,7 @@ Future<void> _pullCloudDataToLocal(SharedPreferencesStore store) async {
           .toSet();
       final merged = {...localFavs, ...cloudFavInts}.toList();
       final p = await store.prefs;
-      await p.setString('favorites', json.encode(merged));
+      await p.setString('fx_favorites', json.encode(merged));
     }
 
     // ── 錯題 ──────────────────────────────────
@@ -72,7 +76,7 @@ Future<void> _pullCloudDataToLocal(SharedPreferencesStore store) async {
         }
       }
       final p = await store.prefs;
-      await p.setString('wrong_book', json.encode(localWrong));
+      await p.setString('fx_wrong_book', json.encode(localWrong));
     }
   } catch (_) {
     // 拉取失敗不影響 App 啟動

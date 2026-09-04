@@ -17,9 +17,9 @@ class HomePage extends ConsumerWidget {
     final allSecs = ref.watch(allSectionsProvider);
     final chapters = ref.watch(chaptersProvider);
 
-    final totalQ = allQs.maybeWhen(data: (q) => q.length, orElse: () => 942);
+    final totalQ = allQs.maybeWhen(data: (q) => q.length, orElse: () => 0);
     final totalSecs =
-        allSecs.maybeWhen(data: (s) => s.length, orElse: () => 60);
+        allSecs.maybeWhen(data: (s) => s.length, orElse: () => 0);
     final totalChapters =
         chapters.maybeWhen(data: (c) => c.length, orElse: () => 8);
     final wrongCount =
