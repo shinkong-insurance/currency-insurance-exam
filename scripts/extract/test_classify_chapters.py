@@ -14,6 +14,26 @@ def test_first_mentioned_regulation_wins_when_both_present():
     q = "「保險業辦理外匯業務管理辦法」與「管理外匯條例」的關係為何？"
     assert classify_by_content(q, "") == 2
 
+def test_classifies_ch3_questions_that_omit_the_regulations_full_suffix():
+    # Real questions (B-49/C-49/E-4/D-30/E-34) state the regulation's subject
+    # ("人身保險業辦理以外幣收付之非投資型人身保險業務") but never append its
+    # full title suffix ("...應具備資格條件及注意事項"), so the old exact
+    # pattern missed them entirely.
+    q = ("人身保險業辦理以外幣收付之非投資型人身保險業務，應由內部稽核單位"
+         "______辦理該等保險商品招攬、核保、理賠、精算、保全、法務及投資"
+         "作業之專案查核。")
+    assert classify_by_content(q, "") == 3
+
+def test_ch3_short_phrase_does_not_steal_from_an_earlier_ch2_match():
+    # Regression guard for the widened ch3 pattern: a question naming ch2's
+    # regulation earlier in the text (modeled on real question B-42) must
+    # still classify to ch2, not get stolen by the shorter ch3 phrase that
+    # also appears later in the same text.
+    q = ("壽險業辦理歐元計價之非投資型人身保險商品相關業務，請確實依據哪些"
+         "規定辦理 A保險業辦理外匯業務管理辦法 B人身保險業辦理以外幣收付之"
+         "非投資型人身保險業務應具備資格條件及注意事項")
+    assert classify_by_content(q, "") == 2
+
 def test_first_mentioned_wins_by_text_position_not_pattern_list_order():
     # Regression guard: chapter 4's pattern comes BEFORE chapter 5's in
     # _REGULATION_PATTERNS, but chapter 5's regulation is named earlier in

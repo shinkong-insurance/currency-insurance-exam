@@ -24,8 +24,12 @@
   內部稽核單位查核→每年」這組先前互相矛盾的答案）。**原本有 5 題選項殘缺
   +3 題文字錯位需要人工處理，已於同日對照題庫固定格式與同題庫近似措辭的
   題目修正完畢**（`scripts/extract/fix_raw_text.py`，317 題現在全部結構化
-  乾淨，分類到章節的題目也從 116 筆增加到 121 筆）。完整細節、以及口訣
-  萃取意外多抓到 2 句原文口訣的說明，見
+  乾淨）。**同日也放寬了 ch3 的章節分類規則**（原本要求法規全名完全比對，
+  漏收了幾題只寫規定主體、沒接完整法規名稱後半段的題目），全量比對過
+  317 題確認 0 筆既有分類受影響。分類到章節的題目從一開始的 116 筆，
+  經過這兩輪修正變成 **126 筆**（比 V1 版的 114 筆多出的都是新分類到
+  的題目，尚未有 plain_explanation，屬於既有 114 題批次之外的內容）。
+  完整細節、以及口訣萃取意外多抓到 2 句原文口訣的說明，見
   `scripts/extract/v3_pdf_update_2026-09-04.md`。`scripts/extract/output/*.json`
   是本機執行期產物（不進 git，重新產出時會自動套用上述修正），該報告文末
   附了重新產出的指令。
@@ -85,13 +89,17 @@ export SUPABASE_SERVICE_ROLE_KEY=<步驟1記下的 service_role key>
 
 cd scripts/seed
 pip install supabase   # 如果這台機器還沒裝過
-python3 seed_content.py   # 灌 course/chapters/questions/mnemonic_cards(original)
-python3 seed_levels.py    # 灌 18 關卡資料
+python3 seed_content.py            # 灌 course/chapters/questions/mnemonic_cards(original)
+python3 ../extract/run_build_levels.py   # 依剛灌進去的題目 id 切出 18 關（seed_levels.py 依賴這一步的輸出，漏了會直接 FileNotFoundError）
+python3 seed_levels.py             # 灌 18 關卡資料
 ```
 
-預期輸出類似：
+預期輸出類似（題數/口訣卡數字反映目前 `questions_with_chapter.json`/
+`mnemonic_cards_original.json` 的內容，若您又重新產出過這兩個檔案，實際數字
+可能不同，不代表跑錯）：
 ```
-seeded 114 questions, 2 mnemonic cards
+seeded 126 questions, 4 mnemonic cards
+共產生 18 關
 seeded 18 levels
 ```
 （2 張口訣卡是 Task 5 抓到的原始口訣，AI 生成的 10 張候選卡不在這裡，見步驟 4b。）
