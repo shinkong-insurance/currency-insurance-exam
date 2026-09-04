@@ -3,27 +3,52 @@
 給下一次接續作業時（不管是您自己動手，還是請 Claude 接續）使用。這份文件假設
 執行者對這個 repo 完全沒有記憶，所以每一步都寫實際指令，不寫「請自行判斷」。
 
-## 🎉 2026-09-04：已經真的上線過一次，步驟 1-6 全部走完並驗證成功
+## 🎉🎉 2026-09-04：已經真的正式上線了，步驟 1-6 全部走完並公開部署成功
+
+**正式網址：https://shinkong-insurance.github.io/currency-insurance-exam/**
+（GitHub repo：https://github.com/shinkong-insurance/currency-insurance-exam，
+`main` 分支放原始碼、`gh-pages` 分支放 build 好的靜態網頁，跟壽險版
+`insurance-exam-app` 的部署模式一致）。
 
 真的申請了 Supabase 專案（`ShinKong Currency Exam`，ap-southeast-2 / Sydney）、
-套用 schema、灌資料、核准 125 題白話解析、build 網頁版、建測試授權碼，並在
-本機瀏覽器完整走過一次：登入 → 首頁 → 章節列表 → 課程簡報翻頁 → 18關卡地圖 →
-作答看解析 → 口訣卡，全部正常。過程中發現並修正一個新問題（見下方），已經
-寫進 migration 檔案。**目前這台機器上沒有留存這次用的 Supabase 專案 URL/key
-（沒有寫進任何檔案，是當場問您取得的），如果要接續上線同一個專案，需要您
-重新提供，或直接照下面步驟 1 開一個新的。**
+套用 schema、灌資料、核准 125 題白話解析、build 網頁版並部署到 GitHub Pages、
+建測試授權碼 `SK-2026-TEST-0001`，並在**正式網址上**完整走過一次：登入 →
+首頁 → 章節列表 → 課程簡報翻頁 → 18關卡地圖 → 作答看解析 → 口訣卡，全部正常。
+**目前這台機器上沒有留存這次用的 Supabase 專案 URL/key（沒有寫進任何檔案，
+是當場問您取得的），如果要接續維護同一個專案，需要您重新提供。**
 
-**⚠️ 新發現的問題（已修正，見 `supabase/migrations/0002_disable_rls_on_user_data_tables.sql`）**：
-新申請的 Supabase 專案會對新建立的表**預設自動開啟 RLS**（這是 Supabase
-平台這幾年的安全性變更，跟 `0001_init_schema.sql` 設計當時的預設行為不同）。
-`0001` 故意沒有幫 `license_keys`/`key_sessions`/`key_favorites`/
-`key_wrong_answers`/`level_progress`/`study_logs` 這 6 張表寫 RLS policy
-（理由見該檔案註解——沿用既有 `lk_auth_service.dart`/`cloud_sync_service.dart`
-的信任模型，沒有 Supabase Auth session 可以驗證身分），但如果 RLS 被平台
-自動開啟又沒有任何 policy，效果等同全部擋掉，anon key 完全讀不到
-`license_keys`，登入畫面會卡在「找不到此授權碼」。**套用 `0001` 之後，
-一定要接著套用 `0002`**（明確關掉這 6 張表的 RLS），下面步驟 2 已經更新
-反映這件事。
+過程中發現並修正了 3 個新問題：
+
+1. **RLS 被 Supabase 平台自動開啟**（已修正，見
+   `supabase/migrations/0002_disable_rls_on_user_data_tables.sql`）：新申請
+   的 Supabase 專案會對新建立的表**預設自動開啟 RLS**（這是 Supabase 平台
+   這幾年的安全性變更，跟 `0001_init_schema.sql` 設計當時的預設行為不同）。
+   `0001` 故意沒有幫 `license_keys`/`key_sessions`/`key_favorites`/
+   `key_wrong_answers`/`level_progress`/`study_logs` 這 6 張表寫 RLS policy
+   （理由見該檔案註解——沿用既有 `lk_auth_service.dart`/
+   `cloud_sync_service.dart` 的信任模型，沒有 Supabase Auth session 可以
+   驗證身分），但如果 RLS 被平台自動開啟又沒有任何 policy，效果等同全部
+   擋掉，anon key 完全讀不到 `license_keys`，登入畫面會卡在「找不到此
+   授權碼」。**套用 `0001` 之後，一定要接著套用 `0002`**，下面步驟 2 已經
+   更新反映這件事。
+2. **`build/web` 的 `<base href>` 沒有對到 GitHub Pages 的子路徑**：Flutter
+   預設 build 出來的 `index.html` 用 `<base href="/">`，部署在網域根目錄
+   沒問題，但 GitHub Pages 專案頁面是子路徑（`/currency-insurance-exam/`），
+   資源全部抓錯路徑（404）。**build 網頁版時務必加
+   `--base-href /currency-insurance-exam/`**（下面步驟 5 已更新）。
+3. **兩個 App 共用同一個 GitHub Pages 網域，localStorage 互相污染**（已修正，
+   見下方「已知落後項目」第 5 點）：`insurance-exam-app` 跟這個 App 都掛在
+   `shinkong-insurance.github.io` 底下（只是路徑不同），瀏覽器 localStorage
+   是照網域算、不分路徑，這個 App 從 scaffold 沿用的 key 名稱
+   （`wrong_book`、`lk_logged_in`、`content_cache_questions` 等）原本跟
+   壽險版完全一樣，會互相覆蓋/污染錯題本、收藏、登入狀態。已經全部加上
+   `fx_` 前綴（`lib/core/database/shared_preferences_store.dart`、
+   `lib/core/services/content_cache_store.dart`、
+   `lib/core/services/lk_auth_service.dart`、`lib/main.dart`）並重新
+   build+部署過，實測確認乾淨瀏覽器登入後資料正確、不再看到壽險版的殘留
+   數字。**這個修正沒有處理壽險版那邊**（不在這次任務範圍內，`main` 分支
+   上如果需要，那邊也應該加自己的前綴，但目前壽險版原本的 key 名稱維持
+   不變，理論上不會反過來被這次的修正影響）。
 
 ## 目前狀態（2026-09-04）
 
@@ -197,36 +222,78 @@ Table Editor 開 `mnemonic_cards` 表手動新增一列：`phrase`、`meaning`�
 對應的 id）、`source='ai_generated'`、`approved=true`。不核准的就不動作
 （RLS 已確保 `approved=false` 的卡片不會出現在 app 前台）。
 
-## 步驟 5：build + 部署
+## 步驟 5：build + 部署（**2026-09-04 已用這個流程正式上線過一次**）
 
 ```bash
 flutter build web \
+  --base-href /currency-insurance-exam/ \
   --dart-define=SUPABASE_URL=https://xxxxxxxx.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=<步驟1記下的 anon key>
+  --dart-define=SUPABASE_ANON_KEY=<步驟1記下的 anon/publishable key>
 ```
 
-部署平台待您決定（plan 原本預設比照壽險版走 GitHub Pages，但這是您的選擇，
-不是既定事實）：
-- **GitHub Pages**（比照壽險版慣例）：需要決定要不要開在 `shinkong-insurance`
-  這個 org 底下，以及要用既有的哪種 deploy 流程（GitHub Actions 自動 build，
-  或手動把 `build/web` 產物 commit 到 `gh-pages` 分支）。
-- 其他選項：Vercel / Netlify / Firebase Hosting 都能直接吃 `build/web` 這個
-  靜態資料夾，設定上更簡單，但跟壽險版不一致。
+**`--base-href /currency-insurance-exam/` 這個參數不能漏**——如果部署平台
+不是 GitHub Pages 的子路徑（例如自訂網域，或整個部署在網域根目錄），要
+改成對應的實際路徑；部署在網域根目錄的話可以整段拿掉（預設就是 `/`）。
+漏了或值不對，網頁會卡在載入畫面，瀏覽器 console 會看到一堆資源 404
+（詳見本文件最上面「2026-09-04」段落的問題 2）。
 
-## 步驟 6：發第一組測試授權碼
+已決定用 **GitHub Pages**（比照壽險版 `insurance-exam-app` 的模式）：
 
-在 Supabase Table Editor 開 `license_keys` 表，新增一列：
+```bash
+# 建 repo（第一次才需要；已經建過的話跳過這步，直接 git remote add 接上）
+gh repo create shinkong-insurance/currency-insurance-exam --public \
+  --description "外幣保險資格測驗學習APP（網頁版）" --source=. --remote=origin
+
+# push 原始碼（本地 master 對到遠端 main，跟壽險版一致）
+git push -u origin master:main
+
+# 把 build/web 的內容放到 gh-pages 分支（獨立 worktree操作，不動目前的工作目錄）
+git worktree add --orphan -b gh-pages /tmp/currency-exam-ghpages   # 第一次建分支
+# 之後每次重新部署，改用這個方式接上已存在的 gh-pages 分支：
+#   git worktree add -b gh-pages-redeploy /tmp/currency-exam-ghpages origin/gh-pages
+#   cd /tmp/currency-exam-ghpages && git rm -rf . >/dev/null
+cp -r build/web/* /tmp/currency-exam-ghpages/
+cd /tmp/currency-exam-ghpages
+touch .nojekyll   # 停用 GitHub Pages 的 Jekyll 處理，避免它誤判某些檔案
+git add -A
+git commit -m "Deploy build/web to GitHub Pages"
+git push origin HEAD:gh-pages
+cd -
+git worktree remove /tmp/currency-exam-ghpages --force
+
+# 開啟 GitHub Pages（第一次才需要；推 gh-pages 分支後 GitHub 有時會自動偵測開啟，
+# 用下面這行確認狀態，出現 409 "already enabled" 表示已經開好了，不用管）
+gh api repos/shinkong-insurance/currency-insurance-exam/pages \
+  -X POST -f "source[branch]=gh-pages" -f "source[path]=/"
+```
+
+部署後網址會是 `https://shinkong-insurance.github.io/currency-insurance-exam/`。
+**GitHub Pages 的 CDN 更新有延遲**，push 完不會馬上生效，實測大約 1-2
+分鐘；用瀏覽器測試時建議在網址後面加個隨便的查詢字串（例如 `?v=2`）強制
+繞過瀏覽器快取，不然可能會一直看到部署前的舊版本。
+
+如果不想用 GitHub Pages，其他選項：Vercel / Netlify / Firebase Hosting
+都能直接吃 `build/web` 這個靜態資料夾，設定上更簡單，但跟壽險版不一致
+（且這些平台通常部署在網域根目錄，`--base-href` 那段可以拿掉）。
+
+## 步驟 6：發第一組測試授權碼（**2026-09-04 已建過一組，見下方**）
+
+在 Supabase Table Editor 開 `license_keys` 表，新增一列（也可以用
+`scripts/seed` 目錄下用同一組 SUPABASE_URL/SERVICE_ROLE_KEY 直接跑
+Python 的 `supabase` client insert，不一定要手動點介面）：
 
 | 欄位 | 範例值 |
 |---|---|
-| key_code | `SK-TEST-0001-0001` |
+| key_code | `SK-YYYY-XXXX-NNNN` 格式，例如 `SK-2026-TEST-0001`（⚠️ 注意：`lib/features/auth/lk_gate_page.dart` 有格式驗證，第二段必須是 4 位數字，不能像 `SK-TEST-0001-0001` 這樣把英文字母放在第二段，會被前端擋掉） |
 | batch_name | `測試批次` |
 | max_uses | `1`（或 `0` = 無限次） |
 | expires_at | 例如 `2026-12-31T23:59:59+08:00` |
 | is_active | `true` |
 
-用這組授權碼在 build 出來的網頁上走一次完整流程：登入 → 章節閱讀 → 練習 →
-錯題本複習 → 口訣卡 → 18 關地圖 → 模擬測驗，確認每個入口都正常。
+用這組授權碼在正式網址（或 build 出來本機測試）上走一次完整流程：登入 →
+章節閱讀 → 課程簡報 → 練習 → 錯題本複習 → 口訣卡 → 18 關地圖 → 模擬測驗，
+確認每個入口都正常。**2026-09-04 用 `SK-2026-TEST-0001` 這組在正式網址上
+完整測過，全部正常。**
 
 ---
 
@@ -246,3 +313,12 @@ flutter build web \
    核准前建議順手潤一下文字。
 4. ~~`web/student-guide.html` 內容還是壽險版的~~ **已解決**：已改寫成外幣版
    實際章節/規則。
+5. ~~兩個 App 共用 GitHub Pages 網域,localStorage 互相污染~~ **2026-09-04
+   已解決**：`insurance-exam-app` 跟這個 App 都掛在
+   `shinkong-insurance.github.io` 底下,瀏覽器 localStorage 是照網域算、
+   不分路徑,原本沿用 scaffold 的 key 名稱完全一樣,會讓學員的錯題本、收藏、
+   登入狀態在兩個 App 之間互相覆蓋。已把這個 App 用到的所有 key 加上 `fx_`
+   前綴（`shared_preferences_store.dart`、`content_cache_store.dart`、
+   `lk_auth_service.dart`、`main.dart`），實測確認修好。**注意：只改了這個
+   App，沒有動壽險版**——如果之後壽險版也要處理類似風險，需要另外去那個
+   repo 改。
