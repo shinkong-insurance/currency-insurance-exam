@@ -100,6 +100,9 @@ seeded 18 levels
 先自己（或請可信任的人）核對至少 20% 的內容，對照
 `scripts/generate/plain_explanation_batch.md` 和對應章節的
 `scripts/generate/output/chapter_<N>_plain_explanations.json`（N = 2,3,4,5,6,7）。
+**已先做過一輪自動抽查，結果見 `scripts/generate/plain_explanation_spotcheck_2026-09-04.md`
+——裡面列出 21 題「原始說明是空的」高風險清單（建議優先全查，不要只抽 20%）
+跟一個確定的格式缺陷（id 100），麻煩從那份報告的建議處理順序開始。**
 確認沒問題後，逐章節執行：
 
 ```bash
@@ -119,8 +122,10 @@ python3 update_plain_explanations.py 7 --approve
 
 ### 4b. AI 口訣卡候選（10 張，只有文件沒有腳本——手動處理即可，量少不值得寫程式）
 
-打開 `scripts/generate/ai_mnemonics_batch.md`，逐張核對「Review table」裡的
-10 個候選（規範正確性 + 好不好記）。核准的，直接在 Supabase Dashboard 的
+打開 `scripts/generate/ai_mnemonics_approval_checklist.md`（依風險由低到高
+排好序的精簡核准表，比原始 `ai_mnemonics_batch.md` 好操作，技術細節仍留在
+後者），逐張核對 10 個候選（規範正確性 + 好不好記）。核准的，直接在
+Supabase Dashboard 的
 Table Editor 開 `mnemonic_cards` 表手動新增一列：`phrase`、`meaning`（陣列）、
 `chapter_id`、`related_question_ids`（陣列，題目 id 從
 `scripts/extract/output/questions_seeded.json` 查 `(exam_set, question_no)`
