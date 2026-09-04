@@ -169,14 +169,17 @@ flutter build web \
 
 ## 已知落後項目（上線前建議一併決定，但不阻擋上線）
 
-1. **教材翻頁閱讀器沒接上**——`assets/images/guide/`（Task 16 產出的 263 張圖）
-   跟 `assets/json/guide_pages.json` 目前沒有任何畫面讀取；真正的閱讀器元件讀的
-   是另一個從未被 seed 過的 `assets/json/section_images.json`。這在 spec 第 4
-   節有明確提到要保留這個功能，是一個真實落差，建議另外排一個小任務補上，
-   不是單靠這份 runbook 能處理的範圍。
+1. ~~教材翻頁閱讀器沒接上~~ **2026-09-04 已解決**：新增 `GuideViewerPage`
+   （`lib/features/guide/guide_viewer_page.dart`），從章節詳情頁的「課程簡報」
+   按鈕進入，讀 `assets/json/guide_pages.json` 的頁碼範圍逐頁顯示
+   `assets/images/guide/` 的 263 張圖，支援滑動翻頁+雙指縮放。已有 3 個
+   widget test 覆蓋（`test/features/guide/`）。註：`assets/json/section_images.json`
+   （單節一張示意圖，接在 `SectionReadingPage`）是另一個從未被 seed 過的
+   獨立功能，跟這裡解決的翻頁簡報閱讀器是兩回事，如果之後要用還是需要另外
+   產出資料並 seed。
 2. **RLS 風險**（見上方「目前狀態」）——一旦真的接上正式 Supabase 專案，這個
    風險就是真的，不是假設性的。建議上線前重新確認是否接受。
 3. 口訣卡文案（步驟 4b 那 10 張）用的是原始題庫掃描文字，包含頁碼引用跟斷行，
    核准前建議順手潤一下文字。
-4. `web/student-guide.html`（考生使用手冊）目前內容還是壽險版的（13章、兩科
-   140分規則等），需要重寫成外幣版的實際章節/規則。
+4. ~~`web/student-guide.html` 內容還是壽險版的~~ **已解決**：已改寫成外幣版
+   實際章節/規則。
