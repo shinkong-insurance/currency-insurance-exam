@@ -1,6 +1,7 @@
 import json, os, uuid
 from pathlib import Path
 from supabase import create_client
+from build_id_registry import load_registry, update_registry, get_id
 
 # mnemonic_cards.id 是 uuid_generate_v4() 隨機預設值——如果 upsert 的 payload 不帶
 # id，每次重跑都會被視為全新一列（沒有可比對的衝突鍵），實際上永遠是「插入」而
@@ -35,7 +36,14 @@ def seed():
     ]).execute()
 
     questions = json.loads((Path(__file__).parent.parent / "extract/output/questions_with_chapter.json").read_text())
-    rows = [to_question_row(q, i + 1) for i, q in enumerate(questions)]
+    # id 一律查穩定的 question_id_registry.json，不能用 enumerate()——分類
+    # 規則之後任何調整都可能讓 questions_with_chapter.json 裡「誰在清單裡、
+    # 排在第幾個」跟著變，若 id 是位置決定的，就會讓已經寫好、用 id 對應
+    # 題目的 plain_explanation batch（scripts/generate/output/chapter_<N>_
+    # plain_explanations.json）在下一次 seed 時悄悄套到錯的題目上，且不會
+    # 有任何錯誤訊息。詳見 build_id_registry.py 開頭的說明。
+    registry = update_registry(questions)
+    rows = [to_question_row(q, get_id(registry, q["exam_set"], q["question_no"])) for q in questions]
     sb.table("questions").upsert(rows).execute()
 
     # 把這次實際指派的 id 寫回一個新檔案，Task 12 (18關切分) 依賴這個檔案取得
