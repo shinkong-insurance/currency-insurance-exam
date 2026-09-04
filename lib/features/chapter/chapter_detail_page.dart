@@ -124,15 +124,34 @@ class _Body extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── Quick action buttons ──────────────────────────────────
-                _ActionButton(
-                  icon: Icons.menu_book,
-                  label: '閱讀教材',
-                  subtitle: '${sections.length} 個小節',
-                  color: color,
-                  onTap: sections.isNotEmpty
-                      ? () => context.push(
-                          '/section/${sections.first.chapterId}/${sections.first.id}')
-                      : null,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.menu_book,
+                        label: '閱讀教材',
+                        subtitle: '${sections.length} 個小節',
+                        color: color,
+                        onTap: sections.isNotEmpty
+                            ? () => context.push(
+                                '/section/${sections.first.chapterId}/${sections.first.id}')
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.slideshow_outlined,
+                        label: '課程簡報',
+                        subtitle: '逐頁圖解',
+                        color: color,
+                        onTap: () => context.push(
+                          '/guide/$chapterId?title=${Uri.encodeComponent(chapter?.title ?? "課程簡報")}',
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 28),

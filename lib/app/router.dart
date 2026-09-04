@@ -9,6 +9,7 @@ import '../features/home/home_page.dart';
 import '../features/chapter/chapter_list_page.dart';
 import '../features/chapter/chapter_detail_page.dart';
 import '../features/section/section_reading_page.dart';
+import '../features/guide/guide_viewer_page.dart';
 import '../features/quiz/quiz_page.dart';
 import '../features/levels/level_map_page.dart';
 import '../features/mnemonics/mnemonic_card_list_page.dart';
@@ -62,6 +63,13 @@ final appRouter = GoRouter(
       builder: (_, state) => SectionReadingPage(
         chapterId: int.parse(state.pathParameters['chapterId']!),
         sectionId: int.parse(state.pathParameters['sectionId']!),
+      ),
+    ),
+    GoRoute(
+      path: '/guide/:chapterId',
+      builder: (_, state) => GuideViewerPage(
+        chapterId: int.parse(state.pathParameters['chapterId']!),
+        chapterTitle: state.uri.queryParameters['title'],
       ),
     ),
     GoRoute(
