@@ -3,6 +3,28 @@
 給下一次接續作業時（不管是您自己動手，還是請 Claude 接續）使用。這份文件假設
 執行者對這個 repo 完全沒有記憶，所以每一步都寫實際指令，不寫「請自行判斷」。
 
+## 🎉 2026-09-04：已經真的上線過一次，步驟 1-6 全部走完並驗證成功
+
+真的申請了 Supabase 專案（`ShinKong Currency Exam`，ap-southeast-2 / Sydney）、
+套用 schema、灌資料、核准 125 題白話解析、build 網頁版、建測試授權碼，並在
+本機瀏覽器完整走過一次：登入 → 首頁 → 章節列表 → 課程簡報翻頁 → 18關卡地圖 →
+作答看解析 → 口訣卡，全部正常。過程中發現並修正一個新問題（見下方），已經
+寫進 migration 檔案。**目前這台機器上沒有留存這次用的 Supabase 專案 URL/key
+（沒有寫進任何檔案，是當場問您取得的），如果要接續上線同一個專案，需要您
+重新提供，或直接照下面步驟 1 開一個新的。**
+
+**⚠️ 新發現的問題（已修正，見 `supabase/migrations/0002_disable_rls_on_user_data_tables.sql`）**：
+新申請的 Supabase 專案會對新建立的表**預設自動開啟 RLS**（這是 Supabase
+平台這幾年的安全性變更，跟 `0001_init_schema.sql` 設計當時的預設行為不同）。
+`0001` 故意沒有幫 `license_keys`/`key_sessions`/`key_favorites`/
+`key_wrong_answers`/`level_progress`/`study_logs` 這 6 張表寫 RLS policy
+（理由見該檔案註解——沿用既有 `lk_auth_service.dart`/`cloud_sync_service.dart`
+的信任模型，沒有 Supabase Auth session 可以驗證身分），但如果 RLS 被平台
+自動開啟又沒有任何 policy，效果等同全部擋掉，anon key 完全讀不到
+`license_keys`，登入畫面會卡在「找不到此授權碼」。**套用 `0001` 之後，
+一定要接著套用 `0002`**（明確關掉這 6 張表的 RLS），下面步驟 2 已經更新
+反映這件事。
+
 ## 目前狀態（2026-09-04）
 
 - 19 個開發任務 + 最終全分支審查 + 一輪修正都已完成並合併到 `master`（沒有
@@ -74,24 +96,35 @@
 1. 到 https://supabase.com/dashboard 用您的帳號登入（或註冊新帳號）。
 2. 建立新專案，**不要**選到壽險版正在用的那個專案——這次要獨立一個新專案
    （spec 明確要求：不共用壽險的 Supabase 專案）。
-3. 專案建好後，到 Project Settings → API，記下三個值：
-   - `Project URL`（例如 `https://xxxxxxxx.supabase.co`）
-   - `anon public` key
-   - `service_role` key（⚠️ 這個 key 有完整資料庫寫入權限，只用在下面的種子腳本，
-     不要放進 Flutter app 或任何前端程式碼）
+3. 專案建好後，左側選單最下面 **Project Settings → API Keys**（新版 Supabase
+   介面把這個獨立出來了，不一定叫「API」；也可以從專案首頁「Get connected」
+   區塊點 **API Keys** 方塊直接進去），記下：
+   - **Project URL**（首頁上就有，例如 `https://xxxxxxxx.supabase.co`）
+   - **Publishable key**（`sb_publishable_...` 開頭——這是新版命名，等同舊版
+     文件裡說的 `anon public` key，可以公開，用在下面 Flutter build 那步）
+   - **Secret key**（`sb_secret_...` 開頭，預設遮住，要點眼睛圖示才會顯示——
+     這是新版命名，等同舊版文件裡說的 `service_role` key，⚠️ 有完整資料庫
+     寫入權限，只用在下面的種子腳本，不要放進 Flutter app 或任何前端程式碼）
+   （如果您的專案介面還是舊版，會直接看到 `anon` / `service_role` 兩個 key，
+   用法完全一樣，只是名字不同。）
 
 ## 步驟 2：套用 schema migration
+
+**最簡單的做法（不需要另外申請 access token）：** 到 Supabase 左側選單點
+**SQL Editor** → 開一個新查詢 → 把 `supabase/migrations/0001_init_schema.sql`
+的內容整個貼進去 → 按 **Run**。**接著務必再貼一次
+`supabase/migrations/0002_disable_rls_on_user_data_tables.sql` 的內容並
+執行**（新專案會預設把 RLS 開在 `license_keys` 等表上，不套用 0002 的話
+登入畫面會卡在「找不到此授權碼」，細節見本文件最上面「2026-09-04」那段）。
+
+備案（需要 Supabase CLI 且已 `supabase login` 或有 access token）：
 
 ```bash
 cd /Users/fortune/currency-insurance-exam   # merge 完之後 master 就有完整程式碼
 export SUPABASE_ACCESS_TOKEN=<在 Supabase Dashboard → Account → Access Tokens 產生>
 supabase link --project-ref <您的 project ref，網址列 xxxxxxxx 那一段>
-supabase db push   # 套用 supabase/migrations/0001_init_schema.sql
+supabase db push   # 依序套用 supabase/migrations/ 底下所有 migration，包含 0001 和 0002
 ```
-
-如果 `supabase db push` 有問題，備案是直接把
-`supabase/migrations/0001_init_schema.sql` 的內容貼到 Supabase Dashboard 的
-SQL Editor 執行一次。
 
 ## 步驟 3：灌資料（章節、題目、口訣、關卡）
 
