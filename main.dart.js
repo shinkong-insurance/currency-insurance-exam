@@ -8857,14 +8857,14 @@ var $async$RC=A.x(function(a,b){if(a===1)return A.t(b,r)
 for(;;)switch(s){case 0:s=3
 return A.n(A.nJ(),$async$RC)
 case 3:o=b
-n=A.bI(J.ak(o.a,"lk_device_id"))
+n=A.bI(J.ak(o.a,"fx_lk_device_id"))
 s=n==null?4:5
 break
 case 4:p=Date.now()
 Date.now()
 n="web_"+p+"_1000"
 s=6
-return A.n(o.kx("String","lk_device_id",n),$async$RC)
+return A.n(o.kx("String","fx_lk_device_id",n),$async$RC)
 case 6:case 5:q=n
 s=1
 break
@@ -8907,17 +8907,17 @@ case 12:s=13
 return A.n(A.nJ(),$async$jq)
 case 13:f=a4
 s=14
-return A.n(f.kx("String","lk_key_id",j),$async$jq)
+return A.n(f.kx("String","fx_lk_key_id",j),$async$jq)
 case 14:s=15
-return A.n(f.kx("String","lk_key_code",A.aX(J.ak(n,"key_code"))),$async$jq)
+return A.n(f.kx("String","fx_lk_key_code",A.aX(J.ak(n,"key_code"))),$async$jq)
 case 15:d=A.bI(J.ak(n,"batch_name"))
 if(d==null)d=""
 s=16
-return A.n(f.kx("String","lk_batch_name",d),$async$jq)
+return A.n(f.kx("String","fx_lk_batch_name",d),$async$jq)
 case 16:s=17
-return A.n(f.kx("String","lk_expires_at",A.aX(J.ak(n,"expires_at"))),$async$jq)
+return A.n(f.kx("String","fx_lk_expires_at",A.aX(J.ak(n,"expires_at"))),$async$jq)
 case 17:s=18
-return A.n(f.kx("Bool","lk_logged_in",!0),$async$jq)
+return A.n(f.kx("Bool","fx_lk_logged_in",!0),$async$jq)
 case 18:d=A.aX(J.ak(n,"key_code"))
 A.bI(J.ak(n,"batch_name"))
 q=new A.ne(B.NC,d,m,null)
@@ -8979,12 +8979,12 @@ for(;;)switch(s){case 0:s=3
 return A.n(A.nJ(),$async$nc)
 case 3:l=b.a
 k=J.ag(l)
-if(A.jP(k.h(l,"lk_logged_in"))!==!0){q=null
+if(A.jP(k.h(l,"fx_lk_logged_in"))!==!0){q=null
 s=1
-break}p=A.bI(k.h(l,"lk_key_id"))
-o=A.bI(k.h(l,"lk_key_code"))
-A.bI(k.h(l,"lk_batch_name"))
-n=A.bI(k.h(l,"lk_expires_at"))
+break}p=A.bI(k.h(l,"fx_lk_key_id"))
+o=A.bI(k.h(l,"fx_lk_key_code"))
+A.bI(k.h(l,"fx_lk_batch_name"))
+n=A.bI(k.h(l,"fx_lk_expires_at"))
 if(p==null||n==null){q=null
 s=1
 break}s=A.Cf(n).EK(new A.ce(Date.now(),0,!1))?4:5
@@ -8995,7 +8995,7 @@ case 6:q=null
 s=1
 break
 case 5:m=o==null?"":o
-l=A.bI(k.h(l,"lk_device_id"))
+l=A.bI(k.h(l,"fx_lk_device_id"))
 q=new A.RD(p,m,l==null?"":l)
 s=1
 break
@@ -9007,15 +9007,15 @@ for(;;)switch(s){case 0:s=2
 return A.n(A.nJ(),$async$nd)
 case 2:q=b
 s=3
-return A.n(q.E(0,"lk_key_id"),$async$nd)
+return A.n(q.E(0,"fx_lk_key_id"),$async$nd)
 case 3:s=4
-return A.n(q.E(0,"lk_key_code"),$async$nd)
+return A.n(q.E(0,"fx_lk_key_code"),$async$nd)
 case 4:s=5
-return A.n(q.E(0,"lk_batch_name"),$async$nd)
+return A.n(q.E(0,"fx_lk_batch_name"),$async$nd)
 case 5:s=6
-return A.n(q.E(0,"lk_expires_at"),$async$nd)
+return A.n(q.E(0,"fx_lk_expires_at"),$async$nd)
 case 6:s=7
-return A.n(q.E(0,"lk_logged_in"),$async$nd)
+return A.n(q.E(0,"fx_lk_logged_in"),$async$nd)
 case 7:return A.u(null,r)}})
 return A.v($async$nd,r)},
 pb:function pb(a,b){this.a=a
@@ -9420,13 +9420,13 @@ return A.n(A.mi(q),$async$ml)
 case 8:s=5
 break
 case 6:s=9
-return A.n(p.E(0,"wrong_book"),$async$ml)
+return A.n(p.E(0,"fx_wrong_book"),$async$ml)
 case 9:s=10
-return A.n(p.E(0,"favorites"),$async$ml)
+return A.n(p.E(0,"fx_favorites"),$async$ml)
 case 10:s=11
-return A.n(p.E(0,"study_progress"),$async$ml)
+return A.n(p.E(0,"fx_study_progress"),$async$ml)
 case 11:s=12
-return A.n(p.E(0,"exam_records"),$async$ml)
+return A.n(p.E(0,"fx_exam_records"),$async$ml)
 case 12:case 5:if($.a6==null)A.Wy()
 o=$.a6
 o.toString
@@ -9472,14 +9472,14 @@ s=10
 return A.n(a4.glH(),$async$mi)
 case 10:j=a6
 s=11
-return A.n(j.kx("String","favorites",B.N.fX(k)),$async$mi)
+return A.n(j.kx("String","fx_favorites",B.N.fX(k)),$async$mi)
 case 11:case 8:s=12
 return A.n(A.aa5(),$async$mi)
 case 12:i=a6
 s=J.eZ(i)?13:14
 break
 case 13:s=15
-return A.n(a4.jx("wrong_book"),$async$mi)
+return A.n(a4.jx("fx_wrong_book"),$async$mi)
 case 15:h=a6
 for(l=J.Ne(i),l=l.gab(l),c=t.N,a=t.K;l.u();){g=l.gL(l)
 f=g.a
@@ -9490,7 +9490,7 @@ J.e8(h,f,A.a9(["question_id",a0,"wrong_count",e,"last_wrong_time",new A.ce(Date.
 return A.n(a4.glH(),$async$mi)
 case 16:d=a6
 s=17
-return A.n(d.kx("String","wrong_book",B.N.fX(h)),$async$mi)
+return A.n(d.kx("String","fx_wrong_book",B.N.fX(h)),$async$mi)
 case 17:case 14:q=1
 s=5
 break
@@ -49696,7 +49696,7 @@ jE(a){return this.au8(a)},
 au8(a){var s=0,r=A.w(t.H),q=this,p,o,n,m
 var $async$jE=A.x(function(b,c){if(b===1)return A.t(c,r)
 for(;;)switch(s){case 0:s=2
-return A.n(q.jx("wrong_book"),$async$jE)
+return A.n(q.jx("fx_wrong_book"),$async$jE)
 case 2:p=c
 o=B.h.j(a)
 n=B.c.W(new A.ce(Date.now(),0,!1).AF(864e8).jj(),0,10)
@@ -49706,42 +49706,42 @@ J.e8(m.h(p,o),"last_wrong_time",new A.ce(Date.now(),0,!1).jj())}else m.m(p,o,A.a
 J.e8(m.h(p,o),"correct_streak",0)
 J.e8(m.h(p,o),"next_review_date",n)
 s=3
-return A.n(q.mm("wrong_book",p),$async$jE)
+return A.n(q.mm("fx_wrong_book",p),$async$jE)
 case 3:return A.u(null,r)}})
 return A.v($async$jE,r)},
 zs(a,b){return this.aF4(a,b)},
 aF4(a,b){var s=0,r=A.w(t.H),q=this,p
 var $async$zs=A.x(function(c,d){if(c===1)return A.t(d,r)
 for(;;)switch(s){case 0:s=2
-return A.n(q.jx("wrong_book"),$async$zs)
+return A.n(q.jx("fx_wrong_book"),$async$zs)
 case 2:p=d
 J.e8(p,B.h.j(a),b)
 s=3
-return A.n(q.mm("wrong_book",p),$async$zs)
+return A.n(q.mm("fx_wrong_book",p),$async$zs)
 case 3:return A.u(null,r)}})
 return A.v($async$zs,r)},
 kf(a){return this.aDW(a)},
 aDW(a){var s=0,r=A.w(t.H),q=this,p
 var $async$kf=A.x(function(b,c){if(b===1)return A.t(c,r)
 for(;;)switch(s){case 0:s=2
-return A.n(q.jx("wrong_book"),$async$kf)
+return A.n(q.jx("fx_wrong_book"),$async$kf)
 case 2:p=c
 J.l1(p,B.h.j(a))
 s=3
-return A.n(q.mm("wrong_book",p),$async$kf)
+return A.n(q.mm("fx_wrong_book",p),$async$kf)
 case 3:return A.u(null,r)}})
 return A.v($async$kf,r)},
 mB(){var s=0,r=A.w(t.H),q=this
 var $async$mB=A.x(function(a,b){if(a===1)return A.t(b,r)
 for(;;)switch(s){case 0:s=2
-return A.n(q.mm("wrong_book",A.r(t.N,t.z)),$async$mB)
+return A.n(q.mm("fx_wrong_book",A.r(t.N,t.z)),$async$mB)
 case 2:return A.u(null,r)}})
 return A.v($async$mB,r)},
 nh(){var s=0,r=A.w(t.Cm),q,p=this,o,n
 var $async$nh=A.x(function(a,b){if(a===1)return A.t(b,r)
 for(;;)switch(s){case 0:n=J
 s=3
-return A.n(p.rV("favorites"),$async$nh)
+return A.n(p.rV("fx_favorites"),$async$nh)
 case 3:o=n.ef(b,new A.asW(),t.S)
 o=A.W(o,o.$ti.i("an.E"))
 q=o
@@ -49770,7 +49770,7 @@ o=J.ag(p)
 if(o.t(p,a))o.E(p,a)
 else o.F(p,a)
 s=3
-return A.n(q.tc("favorites",p),$async$ki)
+return A.n(q.tc("fx_favorites",p),$async$ki)
 case 3:return A.u(null,r)}})
 return A.v($async$ki,r)},
 zR(){var s=0,r=A.w(t.xj),q,p=this,o,n,m,l,k,j,i,h,g
@@ -49779,7 +49779,7 @@ for(;;)switch(s){case 0:i=t.S
 h=A.r(i,t._P)
 g=J
 s=3
-return A.n(p.jx("study_progress"),$async$zR)
+return A.n(p.jx("fx_study_progress"),$async$zR)
 case 3:o=g.Ne(b),o=o.gab(o),n=t.a,m=t.N
 case 4:if(!o.u()){s=5
 break}l=o.gL(o)
@@ -49799,18 +49799,18 @@ zq(a,b,c){return this.aF_(a,b,c)},
 aF_(a,b,c){var s=0,r=A.w(t.H),q=this,p
 var $async$zq=A.x(function(d,e){if(d===1)return A.t(e,r)
 for(;;)switch(s){case 0:s=2
-return A.n(q.jx("study_progress"),$async$zq)
+return A.n(q.jx("fx_study_progress"),$async$zq)
 case 2:p=e
 J.e8(p,B.h.j(a),A.a9(["answered",b,"correct",c,"updated_time",new A.ce(Date.now(),0,!1).jj()],t.N,t.K))
 s=3
-return A.n(q.mm("study_progress",p),$async$zq)
+return A.n(q.mm("fx_study_progress",p),$async$zq)
 case 3:return A.u(null,r)}})
 return A.v($async$zq,r)},
 zL(){var s=0,r=A.w(t.b5),q,p=this,o
 var $async$zL=A.x(function(a,b){if(a===1)return A.t(b,r)
 for(;;)switch(s){case 0:o=J
 s=3
-return A.n(p.rV("exam_records"),$async$zL)
+return A.n(p.rV("fx_exam_records"),$async$zL)
 case 3:q=o.qH(b,t.a)
 s=1
 break
@@ -49820,13 +49820,13 @@ vn(a){return this.a6x(a)},
 a6x(a){var s=0,r=A.w(t.H),q=this,p,o
 var $async$vn=A.x(function(b,c){if(b===1)return A.t(c,r)
 for(;;)switch(s){case 0:s=2
-return A.n(q.rV("exam_records"),$async$vn)
+return A.n(q.rV("fx_exam_records"),$async$vn)
 case 2:p=c
 o=J.c2(p)
 o.fC(p,0,a)
 if(o.gA(p)>50)o.oN(p,50,o.gA(p))
 s=3
-return A.n(q.tc("exam_records",p),$async$vn)
+return A.n(q.tc("fx_exam_records",p),$async$vn)
 case 3:return A.u(null,r)}})
 return A.v($async$vn,r)}}
 A.asW.prototype={
@@ -49849,7 +49849,7 @@ for(;;)switch(s){case 0:n=A
 m=J
 s=3
 return A.n(p.a,$async$hC)
-case 3:o=n.bI(m.ak(d.a,"content_cache_"+b))
+case 3:o=n.bI(m.ak(d.a,"fx_content_cache_"+b))
 if(o==null){q=null
 s=1
 break}q=A.dQ(B.N.mG(0,o,null),!0,t.a)
@@ -49863,7 +49863,7 @@ var $async$r9=A.x(function(d,e){if(d===1)return A.t(e,r)
 for(;;)switch(s){case 0:s=3
 return A.n(q.a,$async$r9)
 case 3:s=2
-return A.n(e.kx("String","content_cache_"+b,B.N.tR(c,null)),$async$r9)
+return A.n(e.kx("String","fx_content_cache_"+b,B.N.tR(c,null)),$async$r9)
 case 2:return A.u(null,r)}})
 return A.v($async$r9,r)}}
 A.pb.prototype={
@@ -50574,13 +50574,13 @@ A.ags.prototype={
 $1(a){return J.b9(a)},
 $S:431}
 A.agt.prototype={
-$0(){return 942},
+$0(){return 0},
 $S:29}
 A.agu.prototype={
 $1(a){return J.b9(a)},
 $S:432}
 A.agC.prototype={
-$0(){return 60},
+$0(){return 0},
 $S:29}
 A.agD.prototype={
 $1(a){return J.b9(a)},
@@ -51830,7 +51830,7 @@ var $async$rm=A.x(function(a,b){if(a===1)return A.t(b,r)
 for(;;)switch(s){case 0:o=J
 n=J
 s=3
-return A.n(p.a.jx("wrong_book"),$async$rm)
+return A.n(p.a.jx("fx_wrong_book"),$async$rm)
 case 3:q=o.ef(n.AI(b),A.bcB(),t.S).e9(0)
 s=1
 break
@@ -51841,7 +51841,7 @@ var $async$vl=A.x(function(a,b){if(a===1)return A.t(b,r)
 for(;;)switch(s){case 0:n=J
 m=J
 s=3
-return A.n(p.a.jx("wrong_book"),$async$vl)
+return A.n(p.a.jx("fx_wrong_book"),$async$vl)
 case 3:o=n.ef(m.aLO(b),new A.avW(),t.yJ).e9(0)
 B.b.ee(o,new A.avX())
 q=o
@@ -51871,7 +51871,7 @@ var $async$ut=A.x(function(b,c){if(b===1)return A.t(c,r)
 for(;;)switch(s){case 0:k=p.a
 i=J
 s=3
-return A.n(k.jx("wrong_book"),$async$ut)
+return A.n(k.jx("fx_wrong_book"),$async$ut)
 case 3:j=i.ak(c,B.h.j(a))
 if(j==null){s=1
 break}o=J.ag(j)
