@@ -2,6 +2,7 @@ import json
 import pdfplumber
 from pathlib import Path
 from segment_questions import parse_table_row, detect_exam_set
+from fix_raw_text import apply_known_fixes
 
 PDF = Path.home() / "Documents/外幣/外幣題庫_ABCDE卷整理(含新增)v3.pdf"
 OUT = Path(__file__).parent / "output/raw_blocks.json"
@@ -38,7 +39,7 @@ def extract_all_blocks(pdf_path=None):
     return all_blocks
 
 if __name__ == "__main__":
-    all_blocks = extract_all_blocks()
+    all_blocks = apply_known_fixes(extract_all_blocks())
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps(all_blocks, ensure_ascii=False, indent=2))
     print(f"{len(all_blocks)} blocks written to {OUT}")
