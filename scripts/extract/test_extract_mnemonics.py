@@ -12,6 +12,14 @@ def test_extracts_koujue_without_quote_marks():
     assert result is not None
     assert result["phrase"] == "構政制"
 
+def test_extracts_koujue_with_newline_before_opening_quote():
+    # 換行出現在「口訣」跟開頭『之間（不是在引號內部），舊規則的間隔只允許
+    # 非換行字元，導致整個 _QUOTED 比對失敗、落到 _BARE 貪婪吃進下一段內容。
+    explanation_raw = "參閱課本第92頁\n【解析】『有價證券總額』→口訣\n『總是』→『總額40%』。"
+    result = extract_mnemonic_from_block(explanation_raw)
+    assert result is not None
+    assert result["phrase"] == "總是"
+
 def test_returns_none_when_no_mnemonic_present():
     explanation_raw = "參閱課本第10頁\n【解析】依保險法第146條規定，答案為第2項。"
     assert extract_mnemonic_from_block(explanation_raw) is None

@@ -3,20 +3,34 @@
 給下一次接續作業時（不管是您自己動手，還是請 Claude 接續）使用。這份文件假設
 執行者對這個 repo 完全沒有記憶，所以每一步都寫實際指令，不寫「請自行判斷」。
 
-## 目前狀態（2026-09-03）
+## 目前狀態（2026-09-04）
 
-- 19 個開發任務 + 最終全分支審查 + 一輪修正都已完成。分支
-  `worktree-currency-exam-build`（worktree 路徑：
-  `/Users/fortune/currency-insurance-exam/.claude/worktrees/currency-exam-build`）
-  乾淨、測試全綠：`flutter test` 35/35、`scripts/extract` pytest 21/21、
-  `scripts/seed` pytest 1/1、`scripts/generate` pytest 2/2、`flutter analyze` 0 錯誤。
-- **這個分支還沒 merge 回 `master`**（本地 merge 因為 Claude 這次的 worktree
-  沙盒隔離無法從這個 session 直接操作主目錄，需要您自己跑，見下方步驟 0）。
+- 19 個開發任務 + 最終全分支審查 + 一輪修正都已完成並合併到 `master`（沒有
+  殘留的 worktree 分支）。
+- **114 題白話解析已對照課程簡報逐題核對過，找到並修正 2 個真實錯誤**
+  （id 100、id 52，另精修 id 36 的說明），細節見
+  `scripts/generate/plain_explanation_spotcheck_2026-09-04.md`。
+  **10 張 AI 口訣候選卡也已核對法規正確性**，2 張發現問題待您決定如何處理
+  （#1 銀杏濃魚油漏了一類機構、#2 政庫軍的機關名稱已過時），細節見
+  `scripts/generate/ai_mnemonics_approval_checklist.md`。這兩批內容仍然是
+  **未核准**狀態（`plain_explanation_reviewed=false`、口訣卡未 insert），
+  核對只是幫您把最該看的地方篩出來，最後核准動作還是要您親自按下去。
+- **2026-09-04 换上新版題庫 PDF**（您提供的
+  `外幣題庫_ABCDE卷整理(含新增)v3.pdf`，已複製到
+  `~/Documents/外幣/` 並設為抽取管線預設來源）。過程中修掉一個抽取程式的
+  bug（表頭偵測假設「每頁表格第0列都是表頭」在 v3 版不成立）。**好消息：
+  已核對過的 114 題白話解析批次完全不受影響，題目 id 也沒有位移，不用重做**。
+  v3 版本身帶了幾個真正的答案/內容修正（例如「業務單位自行查核→每半年、
+  內部稽核單位查核→每年」這組先前互相矛盾的答案），還有 5 題選項殘缺
+  +3 題文字錯位需要人工對照原始 PDF 修正。完整細節、以及口訣萃取意外多抓到
+  2 句原文口訣的說明，見 `scripts/extract/v3_pdf_update_2026-09-04.md`。
+  `scripts/extract/output/*.json` 是本機執行期產物（不進 git），該報告文末
+  附了重新產出的指令。
 - **沒有真正的 Supabase 雲端專案**——全程用本機開發環境驗證，`lib/core/services/supabase_config.dart`
-  目前是明確的佔位字串 `REPLACE_ME`，必須換成您自己申請的專案資訊。
+  目前是明確的佔位字串 `REPLACE_ME`，必須換成您自己申請的專案資訊。實際
+  種子（seed）尚未執行過，所以上面提到的所有內容修正都還來得及在第一次
+  seed 之前就整合進去，不涉及「已上線內容要改」的額外風險。
 - **沒有正式部署網址**——Task 19 的部署步驟刻意保留給您決定（部署平台 / repo org）。
-- **114 題白話解析（plain_explanation）已產出但未核准**（`plain_explanation_reviewed=false`），
-  **10 張 AI 口訣候選卡未核准也未寫入資料庫**（`ai_mnemonics_batch.md`，尚未 insert）。
 - **教材翻頁閱讀器沒有接上**（Task 16 產出的 263 張圖片目前沒有任何畫面在讀取，
   已知落後於 spec 原意，見下方「已知落後項目」）。
 - **RLS 風險提醒**：目前 schema 對使用者資料表（license_keys 等）沒有 ownership
@@ -25,25 +39,11 @@
 
 ---
 
-## 步驟 0：先把分支 merge 回 master（在您自己的終端機執行）
+## 步驟 0：（已完成）分支已 merge 回 master
 
-這個 Claude session 被限制只能對它自己的 worktree 做 git 操作，無法切換到主
-目錄執行 merge。麻煩您自己執行（或用 `!` 開頭讓 Claude 在您的終端機代跑）：
-
-```bash
-cd /Users/fortune/currency-insurance-exam
-git checkout master
-git merge worktree-currency-exam-build
-flutter test   # 應該還是 35/35 全過
-```
-
-merge 成功且測試綠燈後，可選擇性清掉 worktree：
-
-```bash
-git worktree remove .claude/worktrees/currency-exam-build
-git worktree prune
-git branch -d worktree-currency-exam-build
-```
+原本這裡是把開發用的 worktree 分支併回 `master` 的步驟，這件事已經做完
+（目前 repo 已經直接在 `master` 上，沒有殘留的 worktree 或分支），這一步
+不用再執行。以下步驟都是接續在 `master` 上進行。
 
 （沒有 remote，所以沒有 push/PR 這個選項——如果之後想開 GitHub repo 放這個專案，
 那是另一個獨立決定，見步驟 5。）

@@ -2,8 +2,12 @@ import re
 
 # Quoted mnemonic pattern: 口訣『X』
 # Allows newlines in capture (bound: 1-30 chars) because explanation_raw can line-wrap
-# mid-phrase even though column-interleaving is fixed; newlines are stripped post-capture
-_QUOTED = re.compile(r'口訣[^『\n]{0,10}『([^』]{1,30})』')
+# mid-phrase even though column-interleaving is fixed; newlines are stripped post-capture.
+# The gap between 口訣 and 『 also allows a newline (not just non-newline chars) — real
+# PDF text sometimes wraps right after 口訣, before the opening quote (e.g. "口訣\n『總是』"),
+# and without this the whole _QUOTED match fails, falling through to _BARE which then
+# greedily eats the quote marks and next segment too, producing garbage like "總是』→『總額".
+_QUOTED = re.compile(r'口訣[^『]{0,10}『([^』]{1,30})』')
 
 # Bare mnemonic pattern: 口訣X or 口訣→X (direct or arrow-separated)
 _BARE = re.compile(r'口訣\s*[→]?\s*([^\s。\n]{2,8})')
