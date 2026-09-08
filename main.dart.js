@@ -9405,7 +9405,7 @@ var $async$ml=A.x(function(a,b){if(a===1)return A.t(b,r)
 for(;;)switch(s){case 0:if($.a6==null)A.Wy()
 $.a6.toString
 s=2
-return A.n(A.aub("sb_publishable_J7h96eervkYe2lif3U1REQ_zGKr5kYT","https://omtbirjfkedwicfgvwdv.supabase.co"),$async$ml)
+return A.n(A.aub("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tdGJpcmpma2Vkd2ljZmd2d2R2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0NzcyMDgsImV4cCI6MjEwNDA1MzIwOH0.EWCGxZ2WbBzqTxzWvdzcHnWS2jUWM8pKewFl28cCxYg","https://omtbirjfkedwicfgvwdv.supabase.co"),$async$ml)
 case 2:q=$.asV
 if(q==null)q=$.asV=new A.Uy()
 s=3
