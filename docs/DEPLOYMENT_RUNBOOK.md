@@ -3,6 +3,49 @@
 給下一次接續作業時（不管是您自己動手，還是請 Claude 接續）使用。這份文件假設
 執行者對這個 repo 完全沒有記憶，所以每一步都寫實際指令，不寫「請自行判斷」。
 
+## 🐛 2026-09-08：考生實測回報「同樣的題目會重複」，查證屬實並修正
+
+**根本原因**：原始題庫 PDF 的「新增」(E) 卷逐字重複了 A/B/C 卷已經出過的題目
+（題幹、選項、答案、章節完全一致），2026-09-04 放寬 ch3 分類規則、題數從 114
+灌到 126 題那次，抽取流程把這些重複內容當成全新題目各自建了 id，於是同一段
+文字在 `questions` 表裡出現兩個不同 id。SQL 查證找到 **8 組、共 16 筆**：
+
+| 章節 | 保留（A/B/C 卷原題） | 刪除（E 卷重複） |
+|---|---|---|
+| ch2 | id 1（A#3） | id 87（E#35） |
+| ch2 | id 4（A#6） | id 89（E#37） |
+| ch4 | id 10（A#16） | id 95（E#45） |
+| ch4 | id 44（C#17） | id 97（E#47） |
+| ch6 | id 9（A#12） | id 94（E#43） |
+| ch6 | id 25（B#10） | id 93（E#42） |
+| ch6 | id 40（C#9） | id 92（E#41） |
+| ch7 | id 48（C#27） | id 99（E#50） |
+
+這些重複 id 不會在同一個「關卡」裡出現兩次，但會分散在同一章節的不同關卡
+（例如第6章第2關有 id 25、第6章第5關有它的重複題 id 93），考生照關卡順序
+練習會遇到「這題剛剛不是寫過」；「模擬考」從全部題目隨機抽題，也有不低機率
+同組重複題被一起抽到同一次考試。
+
+**修正**（已套用到正式 Supabase 專案，`supabase/migrations/0005_remove_duplicate_questions.sql`）：
+刪除前確認過 `key_favorites`/`key_wrong_answers` 都沒有任何學員資料引用這 8 個
+要刪的 id，不會弄丟真實學員的收藏/錯題紀錄。動作：
+1. `mnemonic_cards.related_question_ids` 有一張口訣卡（「十權」）連到 `[48,99]`，
+   移除 99，只留原本的 48。
+2. `levels.question_ids` 逐一移除這 8 個 id：第2章第3關、第2章第4關、第4章
+   第2關、第6章第4關、第7章第2關各少 1 題（原本多半 7-8 題，變 6 題）；
+   第6章第5關同時含 93、94 兩個要刪的 id，從 6 題變 4 題。
+3. 刪除 `questions` 裡這 8 筆重複題本身。
+4. 結果：題庫從 126 題變 **118 題**，白話解析核准數從 125 變 **117**（8 筆被
+   刪的題目原本都在已核准的 125 題裡）。
+
+**還沒修的地方**：這次只動了 Supabase 正式資料庫的資料，**沒有動
+`scripts/extract`/`scripts/generate` 的抽取程式碼或
+`scripts/seed/question_id_registry.json`**——如果之後從頭重新
+`seed_content.py`（例如換一個新 Supabase 專案），這 8 筆重複題會原封不動再灌
+回去一次。要澈底修，需要回到抽取階段依「題目文字完全相同」做去重（照專案
+慣例：先寫測試再改程式）。這次的緊急修復是先讓正式站上的考生不再看到重複題，
+根源修復留給下一次維護抽取管線時處理。
+
 ## 🎉🎉 2026-09-04：已經真的正式上線了，步驟 1-6 全部走完並公開部署成功
 
 **正式網址：https://shinkong-insurance.github.io/currency-insurance-exam/**
@@ -49,6 +92,58 @@
    數字。**這個修正沒有處理壽險版那邊**（不在這次任務範圍內，`main` 分支
    上如果需要，那邊也應該加自己的前綴，但目前壽險版原本的 key 名稱維持
    不變，理論上不會反過來被這次的修正影響）。
+
+## 🆕 2026-09-08：後台管理 `web/admin.html` 已建立（比照壽險版 `insurance-exam-app/web/admin.html`）
+
+- 新增 `web/admin.html`：靜態單頁後台，直接用 `@supabase/supabase-js` v2 CDN
+  連線本專案的 Supabase 專案（`ShinKong Currency Exam` / `omtbirjfkedwicfgvwdv`），
+  URL 與 anon key 已內嵌在檔案裡（跟壽險版做法一致——這個 key 本來就是公開的
+  anon key，且 `license_keys` 等表本來就對 anon 開放讀寫，見下方 RLS 說明）。
+  兩個分頁：
+  - 🔑 **授權碼管理**：對應現有 `license_keys` 表，新增/編輯/停用單筆授權碼、
+    批次產生（1~200 組，格式 `SK-YYYY-XXXX-NNNN`，正則跟
+    `lib/features/auth/lk_gate_page.dart` 完全一致）、查看單組授權碼的使用記錄
+    （裝置數、收藏題數、錯題數，讀 `key_sessions`/`key_favorites`/`key_wrong_answers`）。
+  - 👥 **學員管理**：對應**新建的** `students` 表（姓名/區部/單位/信箱/梯次/
+    指定或自動分配授權碼/寄送 Email 通知），逐欄位對照壽險版 admin.html 的既有
+    設計。**這張表是這次新增的**（`supabase/migrations/0003_add_students_table.sql`，
+    已套用到正式 Supabase 專案），純後台記帳用途，Flutter app（`lib/`）完全不讀寫它。
+- 登入畫面沿用壽險版模式：Supabase Auth email/password 登入，預設帶入
+  `admin@shinkong.edu.tw`，但**這是獨立的 Supabase 專案，Auth 使用者不會跟壽險版
+  共用**——目前這個專案裡還沒有任何 Auth 使用者，接手的人要先自己到
+  [Supabase Dashboard → Authentication → Users](https://supabase.com/dashboard/project/omtbirjfkedwicfgvwdv/auth/users)
+  建立一組帳密（例如同樣用 `admin@shinkong.edu.tw`），登入畫面才打得通。已用
+  假密碼實測過，client 有正確連到這個專案並收到 Supabase 回應的
+  `Invalid login credentials`（不是網路/CORS 錯誤），確認 URL/anon key 接線正確，
+  只差真的建帳號這一步。
+- **RLS 提醒（沿用既有、不是新風險）**：`students` 表比照 `license_keys` 等 6 張表
+  明確關閉 RLS（見 `0003` 檔案註解），原因跟 0001/0002 一致——admin.html 用 anon
+  key 直連，沒有 Supabase Auth session 可以驗證身分，加 RLS policy 只會擋掉自己。
+  代價是任何拿得到這個 anon key 的人（例如直接看 `web/admin.html` 原始碼）都能
+  略過登入畫面直接用瀏覽器 console 呼叫 `supabase.from('students')...` 讀寫資料，
+  跟現有 `license_keys` 的既有風險屬於同一類，登入畫面是 UI 層級的門檔，不是資料
+  層級的存取控制。
+- **還沒做**：`flutter build web --base-href /currency-insurance-exam/ ...` 之後
+  `build/web/admin.html` 才會是這個新版本，需要重新 build + 部署到 `gh-pages`
+  分支（見下方步驟 5）才會反映到正式網址
+  `https://shinkong-insurance.github.io/currency-insurance-exam/admin.html`。
+- **管理員帳號已建立並實測登入成功**：`admin@skl.com.tw`（用這組取代原本
+  admin.html 預設帶入的 `admin@shinkong.edu.tw`——這個 email 純粹是 Supabase
+  Auth 的登入識別，跟真實網域無關，不需要收得到信，`web/admin.html` 只用
+  `signInWithPassword`，沒有寄驗證信/忘記密碼寄信的流程）。用本機 `http-server`
+  跑 `web/` 目錄實測整個後台，過程中發現並修正 2 個 schema 落差（壽險版
+  `insurance-exam-app` 的 license_keys 表有這兩個欄位，外幣版當初建 `0001` 時
+  漏了）：
+  1. `loadKeys()` 原本 `.order('created_at', ...)`，但這個專案的 `license_keys`
+     （見 `0001_init_schema.sql`）沒有 `created_at` 欄位，會直接載入失敗。
+     已改成 `.order('expires_at', { ascending: false })`。
+  2. 新增/編輯授權碼表單的「備註」欄位會送 `notes`，但 `license_keys` 沒有
+     這個欄位，儲存會失敗。已新增
+     `supabase/migrations/0004_add_notes_to_license_keys.sql`（`alter table
+     license_keys add column notes text`，nullable，已套用到正式專案）。
+  修正後完整測過：登入 → 學員管理（讀 `students`，目前 0 筆）→ 授權碼管理
+  （讀到 `SK-2026-TEST-0001`，有效、0/∞、7 個裝置的使用記錄）→ 編輯授權碼
+  存備註 → 都正常。
 
 ## 目前狀態（2026-09-04）
 
