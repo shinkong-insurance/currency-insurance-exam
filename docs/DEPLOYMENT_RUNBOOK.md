@@ -3,6 +3,63 @@
 給下一次接續作業時（不管是您自己動手，還是請 Claude 接續）使用。這份文件假設
 執行者對這個 repo 完全沒有記憶，所以每一步都寫實際指令，不寫「請自行判斷」。
 
+## 📥 2026-09-08：匯入 2025 Q1 題庫 PDF（857 題轉錄 → 715 題待審核）
+
+使用者提供舊的 2025 年第一季外幣保險考題 PDF（掃描檔、無文字層，857 題，
+`C:\Sthou\Documents\Claude\Projects\Exam Master App\外幣\外幣2025第一季考題.pdf`），
+希望去除過期/不準/失真/無更新的題目後併入現有題庫，比照現有做法（答案附白話
+解析）。使用者透過 AskUserQuestion 明確拍板的範圍：
+
+1. **857 題一次做完**，不分批。
+2. **時間快照統計題直接排除、不入庫**（例如「截至 2025 年 3 月底，某類保單
+   件數為...」這種考完當下就過期、幾年後毫無意義的題目）。
+3. **這一輪只做「分類 + 入庫」，白話解析先留白**，之後另外處理。
+4. 因為 seed 進 `questions` 表本來會透過既有 RLS `using (true)` 立刻讓真實考生
+   看到未審核內容，使用者選擇**新增審核欄位**擋住，而不是直接 seed 或整批延後。
+
+**做法**：
+- 沒有安裝 `pdftoppm`/poppler，Read 工具內建的 PDF 管線用不了，改用
+  `pymupdf`（`pip install pymupdf`）把每頁轉成 PNG，再用 Read（圖片模式）逐頁
+  用視覺逐題轉錄成 JSON（`scripts/extract/output/fx2025q1_ch*.json`，857 筆，
+  `{no, q, opts[4], ans, stale?}`）。**沒有用 OCR**，純視覺轉錄。
+- 去重分兩層，都用 `difflib.SequenceMatcher` 比對**完整**正規化後文字（全形轉
+  半形、去標點空白）——一開始只截前 60 字比對出大量假陽性（不同題目共用同一段
+  法規引文開頭），改成比對全文才修正：
+  - 跟現有 118 題比對，相似度 ≥0.85 視為重複：132 題被排除。
+  - 857 題內部互比：3 題內部重複被排除。
+  - 加上使用者要求排除的時間快照統計題：7 題。
+  - 合計排除 142 題，**核准 715 題**（`scripts/extract/output/fx2025q1_approved.json`）。
+- 分類：延用 `classify_chapters.py` 的法規名稱 regex（`classify_2025q1.py`），
+  比對不到的再加一層主題關鍵字 fallback。ch1（考試相關通識）全部直接歸類到
+  app 第 1 章。最終分佈（app 章節 id → 題數）：
+  `{1:24, 2:23, 3:110, 4:34, 5:65, 6:74, 7:156, 8:229}`。**第 8 章的 229 題是
+  regex/關鍵字都比對不到、掉進 catch-all 的題目，分類信心較低，之後要人工複核**；
+  其餘 486 題有比對到明確法規/主題關鍵字，信心較高。
+- 審核閘門：新增 `supabase/migrations/0006_add_question_review_gate.sql`，
+  `questions` 加 `reviewed boolean not null default true`，並把 RLS policy
+  `"content readable by anon"` 從 `using (true)` 改成 `using (reviewed = true)`。
+  已套用到正式站，既有 118 題自動維持 `reviewed = true`（不受影響）。
+- Seed：`build_2025q1_seed.py` 產生 id 127-841、每章 `question_no` 從 100 起算、
+  `reviewed = false`、`exam_set = '2025Q1'` 的 INSERT SQL（分 7 個檔案，
+  `scripts/extract/output/seed_2025q1_part1.sql` ~ `part7.sql`），逐一用
+  `execute_sql` 灌進正式 Supabase 專案。灌完驗證：
+  `total_questions=833, new_batch(exam_set='2025Q1')=715, reviewed_true=118,
+  reviewed_false=715, distinct_ids=833`，RLS policy 確認仍是
+  `using (reviewed = true)`。
+
+**結果**：正式站上真實考生**完全沒有變化**（RLS 擋住 `reviewed=false`
+的題目，Flutter 端不用改任何程式碼）。新題目已在資料庫但暫不可見。
+
+**還沒做的事（使用者刻意先不做，留給下一次）**：
+- 715 題的 `explanation`（白話解析）目前全部是空字串，需要另外撰寫。
+- 第 8 章那 229 題的分類正確性需要人工複核/修正。
+- 是否要重新設計現有 18 個關卡（`levels`）把新題目排進去，這次完全沒動。
+- 要開放某一批新題給考生看，只需要對該批下 `update questions set reviewed =
+  true where ...`，不用改前端；建議先確認分類/解析都到位再一批一批開放。
+- 轉錄/去重/分類的中間產物都在 `scripts/extract/output/`（已被
+  `scripts/extract/.gitignore` 排除，不進 git）；`classify_2025q1.py` 跟
+  `build_2025q1_seed.py` 這兩支腳本本身有進 git。
+
 ## 🐛 2026-09-08：考生實測回報「同樣的題目會重複」，查證屬實並修正
 
 **根本原因**：原始題庫 PDF 的「新增」(E) 卷逐字重複了 A/B/C 卷已經出過的題目
