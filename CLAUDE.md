@@ -39,10 +39,10 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
 - **已正式上線**：https://shinkong-insurance.github.io/currency-insurance-exam/
   （GitHub repo：https://github.com/shinkong-insurance/currency-insurance-exam，
   `main` 放原始碼、`gh-pages` 放建置後的靜態網頁）
-- **118 題題庫**（2026-09-08 前是 126 題，考生實測回報「同樣的題目會重複」，
-  查證後刪除 8 組真的逐字重複的題目，見下方「還沒做的事」）、8 章、18 關卡、
-  2 張原文口訣卡已灌進 Supabase；125/126 題白話解析已核准（刪掉的 8 題都在
-  已核准的那 125 題裡，實際剩 117 題有白話解析）
+- **2026-09-09 完成：309 題題庫**（ABCDE v3 正式範圍 317 題，扣除 8 組確認
+  逐字重複的題目）、8 章、18 關卡、4 張原文口訣卡已灌進 Supabase；301/309
+  題白話解析已核准（7 題依專案慣例留白：ch2/ch3 沿用上一個 session 留白的
+  5 題 + 這次 ch8 新留白的 2 題）。細節見 runbook 2026-09-09 條目。
 - **Supabase 專案的 URL/API key 沒有存在這個 repo 或任何檔案裡**（刻意不
   存，避免 secret 外洩）——需要接手的人自己去 Supabase Dashboard 查，或問
   持有帳號的人要
@@ -50,52 +50,31 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
 
 ## 還沒做的事
 
-- **【下一個任務，2026-09-09 使用者拍板】讓 ABCDE v3 題庫 317 題全部都能給考生
-  練習（目前只有 126→118 題上線，還有 191 題完全沒進網站）**。
-  已查證：`run_classify_chapters.py` 對 v3 版 317 筆結構化題目（`structure
-  cleanly: 317, needs manual review: 0`）分類，結果 **classified: 126,
-  unclassified: 191**（跑法：`scripts/extract/run_segmentation.py` 指到
-  這份 v3 PDF → `run_structure_questions.py` → `run_classify_chapters.py`）。
-  印出的前 20 筆 unclassified 範例都是 A 卷題目，主題明顯屬於現有章節
-  （例如 A-13/A-14 投資型保單連結標的物→ch6「投資型保險投資管理辦法」、
-  A-20/A-21 申報結匯→ch5「外匯收支或交易申報辦法」、A-23/A-26/A-27/A-28/
-  A-29/A-30/A-31/A-32/A-33/A-34/A-35 保險業國外投資→ch7「保險業辦理國外
-  投資管理辦法」），只是題目本身沒有逐字引用法規全名，現有
-  `classify_chapters.py` 的 regex 抓不到——跟 2025Q1 那批題目遇到的問題
-  是同一種，當時是加一層主題關鍵字 fallback（`classify_2025q1.py` 的
-  `_FALLBACK_PATTERNS`）解決的，這次應該可以直接沿用/擴充同一招。
-  完整任務範圍：
-  1. 擴充分類規則（fallback 關鍵字），把 191 題盡量分進現有 8 章
-     （8「人身保險基本概念及其他」本來就是真正的通識/其他類，A-1、A-2
-     這種沒有明確法規主題的題目本來就該落在這裡，不是 bug）。
-  2. 對新分類出的題目補上白話解析（`explanation` 欄位），寫法比照既有
-     `plain_explanation_batch.md` 的慣例；沒有把握的（像 id 122 新增-9
-     那樣）依專案慣例寧可留白也不要瞎猜。
-  3. 重新指派 id 時務必用 `scripts/seed/question_id_registry.json` +
-     `build_id_registry.py` 的「首次分類到就固定住」邏輯，不要用
-     `enumerate()`，否則既有 118 題（id 1-126 扣掉刪除的 8 個）的 id
-     可能被打亂（這正是 v3 更新報告裡踩過的坑，見上面 `v3_pdf_update_
-     2026-09-04.md`）。
-  4. 新分出的題目要排進 18 個關卡（`levels.question_ids`）才會真的出現在
-     考生的關卡練習流程裡，不是灌進 `questions` 表就結束。
-  5. Seed 時直接 `reviewed=true`（這批是 ABCDE v3 正式範圍內的題目，不是
-     像 2025Q1 那樣需要審核閘門擋著的補充內容）。
-  6. 走完後跑一次 `flutter analyze`（0 error）+ `flutter test`，並在瀏覽器
-     完整走一次登入→章節→關卡→作答→解析確認新題目看得到、答得了、有解析。
-  **注意（這台 Windows 機器上剛踩到的新坑）**：Python 讀寫這些腳本的
-  UTF-8 JSON/PDF 檔案時，Windows 預設主控台編碼是 cp950，裸用
-  `Path.read_text()` / `open()` 不指定 `encoding='utf-8'` 會丟
-  `UnicodeDecodeError`。跑這些腳本前先 `export PYTHONUTF8=1`（或在
-  Python 腳本裡都明確帶 `encoding='utf-8'`），比較保險是把
-  `PYTHONUTF8=1` 設成這台機器上跑 `scripts/extract`/`scripts/generate`/
-  `scripts/seed` 的固定前綴。
-- **抽取管線本身沒修**：這次只刪了 Supabase 正式資料庫裡的 8 筆重複題
-  （`supabase/migrations/0005_remove_duplicate_questions.sql`），沒有動
-  `scripts/extract`/`scripts/generate` 的程式碼或 `scripts/seed/question_id_registry.json`。
-  代表如果之後從頭重新 `seed_content.py`（例如換一個新 Supabase 專案），
-  這 8 筆重複題會原封不動再灌回去一次。真正的根源是原始題庫 PDF 的「新增」
-  (E) 卷逐字重複了 A/B/C 卷已出過的題目，要澈底修得回到抽取階段依「題目文字
-  完全相同」做去重（照專案慣例：先寫測試再改 `scripts/extract`）。
+- **✅ 2026-09-09 完成：ABCDE v3 題庫 317 題（實際 309 題，扣除 8 筆確認重複）
+  全部可供考生練習**。147 題（ch5/6/7/8）白話解析已補完 145 題（2 題依專案
+  慣例留白，見下方）、191 題新分類題目已 seed（`reviewed=true`）、18 個
+  關卡已重建（題數加總 309，跟資料庫一致）、`flutter analyze` 0 error、
+  `flutter test` 38 個測試全過。細節見
+  [`docs/DEPLOYMENT_RUNBOOK.md`](docs/DEPLOYMENT_RUNBOOK.md) 2026-09-09
+  條目、過程記錄見 [`docs/HANDOFF_TASK1_REMAINING.md`](docs/HANDOFF_TASK1_REMAINING.md)。
+  **瀏覽器手動走查（登入→章節→關卡→作答→解析）尚待使用者自行確認**——這次
+  執行環境的瀏覽器擴充套件帳號跟登入帳號不一致，無法用自動化工具操作，本機
+  伺服器已跑在 `http://localhost:8765`（`flutter run -d web-server
+  --web-port=8765`）。
+  - id 978（110年7月新契約生命表）、id 980（被投資保險相關事業7日內陳報
+    情事）這 2 題找不到明確依據（978 甚至跟簡報內容有出入：簡報說 110年7月
+    是第六回、115年1月才改第七回，但題目給的正解是「第七回」），依專案慣例
+    留白未寫解析。
+- **抽取管線本身沒修，且這次又踩到一次坑**：`questions_with_chapter.json`
+  仍然沒有修過抽取階段的去重邏輯，2026-09-09 這次重新跑 `seed_content.py`
+  時，2026-09-03 已經從 Supabase 刪除的 8 筆「新增(E)卷逐字重複」題目
+  （id 87,89,92,93,94,95,97,99）又被原封不動插回資料庫一次，已比照
+  `supabase/migrations/0005_remove_duplicate_questions.sql` 的做法重新
+  刪除、修復 `mnemonic_cards`「十權」卡的關聯。真正的根源是原始題庫 PDF 的
+  「新增」(E) 卷逐字重複了 A/B/C 卷已出過的題目，要澈底修得回到抽取階段依
+  「題目文字完全相同」做去重（照專案慣例：先寫測試再改 `scripts/extract`）。
+  **下一個接手的人在重新跑 `seed_content.py` 之前，務必先確認這 8 個 id
+  有沒有又跑回資料庫**。
 - 10 張 AI 口訣候選卡的人工核准（`scripts/generate/ai_mnemonics_approval_checklist.md`）
 - 4 句原文口訣裡有 2 句（週三日一、金三角）因來源題目沒被分類到章節而沒灌進資料庫
 - id 122（新增-9，ch6）缺白話解析，課程簡報裡找不到依據，需對照正式法規全文

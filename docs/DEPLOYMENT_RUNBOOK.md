@@ -3,6 +3,62 @@
 給下一次接續作業時（不管是您自己動手，還是請 Claude 接續）使用。這份文件假設
 執行者對這個 repo 完全沒有記憶，所以每一步都寫實際指令，不寫「請自行判斷」。
 
+## ✅ 2026-09-09：ABCDE v3 題庫 317 題全部上線（接續 HANDOFF_TASK1_REMAINING.md）
+
+延續另一個 terminal session 已修好的 id 衝突問題（191 題新分類題目固定用 id
+842-1032，見 `docs/HANDOFF_TASK1_REMAINING.md`），本次完成該文件列出的剩餘任務：
+
+1. **補完 ch5/ch6/ch7/ch8 共 147 題的白話解析**，寫入
+   `scripts/generate/output/chapter_{5,6,7,8}_plain_explanations.json`
+   （ch8 是新建檔案）。寫法優先採用題目自帶的 `explanation`/`keyword_hint`
+   原始提示展開；提示不足時用 `grep` 對照
+   `scripts/extract/output/slide_full_text.txt`（課程簡報全文）逐一查證法規
+   數字、門檻、清單項目，找不到明確依據的 2 題（id 978「110年7月新契約生命表」
+   ——簡報明確寫 110年7月是第六回、115年1月才改第七回，跟題目給的正解「第七回」
+   對不上；id 980「被投資保險相關事業7日內陳報之情事」——簡報找不到這段規範
+   內容）**依專案慣例留白，沒有寫進 JSON**，共 145/147 題有解析。
+2. `cd scripts/extract && python3 -m pytest -q` → 51 passed，分類邏輯本身沒被動到。
+3. **Seed 191 題新題目本體**：`python3 seed_content.py`。
+   ⚠️ **踩到一個新坑並已修復**：`seed_content.py` 是把
+   `questions_with_chapter.json`（317 筆全部）整批 upsert，這份檔案本身
+   **沒有修過抽取階段的去重邏輯**，仍然含有 2026-09-03 那次已經從 Supabase
+   刪除的 8 筆「新增(E)卷逐字重複A/B/C卷」題目（id 87,89,92,93,94,95,97,99，
+   見 `supabase/migrations/0005_remove_duplicate_questions.sql`）。這次
+   seed 完後這 8 筆被原封不動重新插回資料庫，正是 CLAUDE.md 早就警告過的
+   「重新從頭 seed_content.py 會讓這 8 筆重複題再灌回去一次」——**這件事這次
+   真的發生了**。已立即用跟 migration 0005 完全相同的手法修復：
+   - `mnemonic_cards`「十權」卡的 `related_question_ids` 移除 99（保留 48）。
+   - 掃過全部 18 個 level（此時尚未重建，確認沒有受影響）。
+   - `delete from questions where id in (87,89,92,93,94,95,97,99)`（先確認
+     `key_favorites`/`key_wrong_answers` 都沒有引用這 8 個 id，沒有真實學員
+     資料風險）。
+   - **抽取管線本身依然沒修**：`questions_with_chapter.json` 沒有動，下次
+     任何人重新跑 `seed_content.py` 之前，**務必先手動刪除這 8 筆 id**（或
+     等抽取階段真的補上「題目文字完全相同」去重邏輯，見 CLAUDE.md 這條
+     待辦）。
+   驗證：`842-1032 reviewed=true` = 191、`exam_set='2025Q1'` = 715（沒被動到）、
+   `id<=126` = 118（恢復乾淨）。
+4. **重建 18 個關卡**：`run_build_levels.py` + `seed_levels.py`。因為
+   `questions_seeded.json` 是 seed_content.py 那次寫出來的（當時 8 筆重複題
+   還在），排關卡前先把這 8 個 id 從該檔案濾掉，重新產生後總題數 309（=317-8），
+   跟 Supabase 實際題數一致。18 關驗證：關卡題數加總 = 309。
+5. **寫入並核可白話解析**：`update_plain_explanations.py {1,2,3,5,6,7,8} --approve`。
+   下 `--approve` 前先對 ch5-8 各抽 4 題（共 16 題，約 11%）逐題核對答案索引
+   與選項文字邏輯一致，加上撰寫時本來就大量對照簡報原文查證，符合專案人工
+   把關慣例。核可後 `842-1032` 範圍 `plain_explanation_reviewed=true` 共
+   184 題（191 減掉 7 題留白：ch2/ch3 沿用上一個 session 已留白的 5 題 +
+   這次新留白的 2 題）。
+6. **Flutter 驗證**：`flutter analyze` 0 error（67 個既有 warning/info，跟
+   之前記錄的基準一致）；`flutter test` 38 個測試全過。瀏覽器手動走查（登入
+   →章節→關卡→作答→解析）因為這次執行環境的 Chrome 擴充套件帳號跟登入帳號
+   不一致（`tabs_context_mcp` 回報 OAuth token 不符），無法用瀏覽器自動化
+   工具代為操作，改請使用者自行在 `flutter run -d web-server --web-port=8765`
+   起的本機伺服器上手動核對。
+
+**結果**：ABCDE v3 題庫 317 題（扣掉 8 筆確認重複的= 309 題實際上線）全數可
+供考生練習，18 關卡都排好，145/147 題新解析已核可顯示，2 題依專案慣例留白。
+2025Q1 715 題批次維持原樣不受影響（`reviewed=false`，考生看不到）。
+
 ## 📥 2026-09-08：匯入 2025 Q1 題庫 PDF（857 題轉錄 → 715 題待審核）
 
 使用者提供舊的 2025 年第一季外幣保險考題 PDF（掃描檔、無文字層，857 題，
