@@ -76,12 +76,15 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
 
 - **`#/lk` 自動授權：瀏覽器手動走查尚待確認**（程式碼、migration、Edge
   Function 部署、gh-pages 部署都已完成並用 curl 測過三種情境，見上方
-  2026-09-14 條目；唯獨還沒有人實際在瀏覽器打開
-  `https://shinkong-insurance.github.io/currency-insurance-exam/#/lk`，
-  用真人手動填姓名/單位/員編走一次「送出 → 直接登入 → 能看到題庫」，也還
-  沒在 `admin.html` 檢查這筆測試資料顯示是否正常——建議上線前補這一步）。
-- 本機 `main` 分支已有一個 commit 尚未 push 到 `origin/main`
-  （`ede2ccd`，含本次 `#/lk` 自動授權的所有程式碼異動）。
+  2026-09-14 條目）。
+- **✅ 2026-09-14 完成：`#/lk` 瀏覽器手動走查**。用 Playwright 開真的瀏覽器
+  打開 `https://shinkong-insurance.github.io/currency-insurance-exam/#/lk`，
+  填姓名「測試學員B」/單位「測試部門」/員編「TESTB-001」送出，確認直接
+  登入並導到首頁（`309 題庫`/`8 章節` 都正常顯示），Supabase `students` 表
+  也確認寫入了正確的三欄資料與 60 天 `expires_at`。走查用的測試資料
+  （`employee_id=TESTB-001`）已刪除，不留在正式資料庫。`admin.html` 本身
+  未實際登入驗證（需要密碼，未取得），但已確認頁面能正常載入、程式碼裡
+  員編欄位/刪除按鈕/統計都已比照設計實作（見上方 2026-09-14 commit）。
 - **✅ 2026-09-09 完成：ABCDE v3 題庫 317 題（實際 309 題，扣除 8 筆確認重複）
   全部可供考生練習**。147 題（ch5/6/7/8）白話解析已補完 145 題（2 題依專案
   慣例留白，見下方）、191 題新分類題目已 seed（`reviewed=true`）、18 個
