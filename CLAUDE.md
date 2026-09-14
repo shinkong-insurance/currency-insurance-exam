@@ -9,6 +9,21 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
 
 ## 目前狀態速覽（詳細見 runbook 最上面）
 
+- **2026-09-14 完成（程式碼）：`#/lk` 自動授權（比照壽險版 insurance-exam-app
+  的 lk-auto-authorization，但外幣版沒有電話/推薦人概念，改用「姓名+單位+員編」
+  三欄辨識同一人）**。學員填姓名/單位/員編即可自動取得 60 天授權並直接登入，
+  原本的授權碼輸入改為下方「改用授權碼登入」備用連結。範圍：
+  `supabase/migrations/0007_lk_auto_auth_fields.sql`（`students` 新增
+  `employee_id`）、`supabase/functions/auto-register-student/index.ts`（新
+  Edge Function）、`lib/core/services/lk_auth_service.dart`
+  （`autoRegister()`）、`lib/features/auth/lk_gate_page.dart`（雙模式表單）、
+  `web/admin.html`（學員表格/Modal 加員編欄、學員與授權碼皆可刪除、統計加今日
+  新增/即將到期/依單位分組）、新建 `web/admin-guide.html`、更新
+  `web/student-guide.html`。`flutter analyze` 0 error、`flutter test` 42
+  個測試全過（含新增 `test/features/auth/lk_gate_page_test.dart` 4 個）。
+  **尚未部署**：migration 沒有 `supabase db push`、Edge Function 沒有
+  `supabase functions deploy`、`web/` 底下的 html 沒有重新 build+部署到
+  `gh-pages`，需要有 Supabase 專案存取權限的人接手，見下方「還沒做的事」。
 - **2026-09-09 確認：ABCDE v3 題庫才是正式範圍，2025Q1 批次暫緩、不再繼續開發**。
   使用者另外上傳 `外幣題庫_ABCDE卷整理(含新增)v3.pdf`（跟 `scripts/extract/
   v3_pdf_update_2026-09-04.md` 記錄的來源檔逐位元組比對確認一致：317 筆原始列，
@@ -50,6 +65,19 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
 
 ## 還沒做的事
 
+- **`#/lk` 自動授權部署**（程式碼已完成，見上方 2026-09-14 條目）：
+  1. `supabase db push`（或 Dashboard 手動執行）套用
+     `0007_lk_auto_auth_fields.sql`
+  2. `supabase functions deploy auto-register-student`（需先 `supabase login`
+     + 專案存取權限；此 repo 內沒有存 Supabase URL/service role key，需另外
+     設定環境變數 `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`——Edge Function
+     執行環境會自動注入，不需要手動設定）
+  3. `flutter build web --base-href /currency-insurance-exam/` 後把
+     `build/web` 內容、連同 `web/admin.html`、`web/admin-guide.html`、
+     `web/student-guide.html` 一併部署到 `gh-pages` 分支
+  4. 部署後於正式站 `#/lk` 走一次完整流程（填姓名/單位/員編 → 確認直接登入
+     → `admin.html` 能看到該筆新資料），並用 curl 測 Edge Function 的
+     「新員編」「同姓名+單位+員編重複送出續權」「缺欄位」三種情境
 - **✅ 2026-09-09 完成：ABCDE v3 題庫 317 題（實際 309 題，扣除 8 筆確認重複）
   全部可供考生練習**。147 題（ch5/6/7/8）白話解析已補完 145 題（2 題依專案
   慣例留白，見下方）、191 題新分類題目已 seed（`reviewed=true`）、18 個
@@ -86,6 +114,6 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
   一律先寫測試再實作，每個腳本目錄下都有對應 `pytest`
 - `scripts/extract/output/*.json` 是本機執行期產物，不進 git，需要時照
   `scripts/extract/v3_pdf_update_2026-09-04.md` 文末的指令重新產生
-- Flutter 端改動後跑 `flutter analyze`（0 error）+ `flutter test`（38 tests）
+- Flutter 端改動後跑 `flutter analyze`（0 error）+ `flutter test`（42 tests）
 - 部署到 GitHub Pages 記得帶 `--base-href /currency-insurance-exam/`，細節
   見 runbook 步驟 5

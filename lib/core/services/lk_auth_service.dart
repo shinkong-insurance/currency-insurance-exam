@@ -122,6 +122,52 @@ class LkAuthService {
     }
   }
 
+  // ── 自動註冊（姓名/單位/員編 → 自動取得 60 天授權）───
+  static Future<LkLoginResponse> autoRegister({
+    required String name,
+    required String unitName,
+    required String employeeId,
+  }) async {
+    try {
+      final res = await _sb.functions.invoke('auto-register-student', body: {
+        'name': name,
+        'unit_name': unitName,
+        'employee_id': employeeId,
+      });
+
+      final data = res.data;
+      if (data is! Map || data['error'] != null) {
+        final msg = (data is Map ? data['error']?.toString() : null) ?? '註冊失敗，請稍後再試';
+        return LkLoginResponse(result: LkLoginResult.error, error: msg);
+      }
+
+      final keyId = data['key_id'] as String;
+      final keyCode = data['key_code'] as String;
+      final expiresAt = DateTime.parse(data['expires_at'] as String);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kLkKeyId, keyId);
+      await prefs.setString(_kLkKeyCode, keyCode);
+      await prefs.setString(_kLkBatchName, 'AUTO');
+      await prefs.setString(_kLkExpiresAt, expiresAt.toIso8601String());
+      await prefs.setBool(_kLkLoggedIn, true);
+
+      return LkLoginResponse(
+        result: LkLoginResult.success,
+        keyId: keyId,
+        keyCode: keyCode,
+        batchName: 'AUTO',
+        expiresAt: expiresAt,
+      );
+    } on FunctionException catch (e) {
+      final d = e.details;
+      final msg = (d is Map && d['error'] != null) ? d['error'].toString() : '註冊失敗，請稍後再試';
+      return LkLoginResponse(result: LkLoginResult.error, error: msg);
+    } catch (e) {
+      return LkLoginResponse(result: LkLoginResult.error, error: e.toString());
+    }
+  }
+
   // ── upsert key_sessions 並更新 used_count ────
   static Future<void> _upsertSession(String keyId, String deviceId, bool trackUses) async {
     // 先確認是否已有 session
