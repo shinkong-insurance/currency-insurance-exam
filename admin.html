@@ -136,6 +136,7 @@
     <div style="display:flex;gap:8px;align-items:center">
       <span id="admin-label" style="color:var(--muted);font-size:12px"></span>
       <a href="student-guide.html" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">📱 考生使用手冊</a>
+      <a href="admin-guide.html" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">⚙️ 講師手冊</a>
       <button class="btn btn-outline btn-sm" onclick="doLogout()">登出</button>
     </div>
   </div>
@@ -154,13 +155,32 @@
         <div class="stat-card"><div class="num" id="s-active">—</div><div class="lbl">已分配授權碼</div></div>
         <div class="stat-card"><div class="num" id="s-expired">—</div><div class="lbl">未分配授權碼</div></div>
         <div class="stat-card"><div class="num" id="s-logins">—</div><div class="lbl">已寄送郵件</div></div>
+        <div class="stat-card"><div class="num" id="s-today">—</div><div class="lbl">今日新增</div></div>
+        <div class="stat-card"><div class="num" id="s-expiring">—</div><div class="lbl">即將到期（≤7天）</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>依單位分組</h2>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>單位</th>
+                <th>學員數</th>
+              </tr>
+            </thead>
+            <tbody id="unit-breakdown-tbody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="panel">
         <div class="panel-header">
           <h2>學員管理 <span style="color:var(--muted);font-size:12px;font-weight:400">（授權碼 + 信箱 對應）</span></h2>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <input class="search-input" id="search-box" placeholder="🔍 搜尋姓名 / 區部 / 單位" oninput="renderTable()">
+            <input class="search-input" id="search-box" placeholder="🔍 搜尋姓名 / 區部 / 單位 / 員編" oninput="renderTable()">
             <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">＋ 新增學員</button>
             <button class="btn btn-outline btn-sm" onclick="loadUsers()">重整</button>
           </div>
@@ -172,6 +192,7 @@
                 <th class="hide-sm">區部</th>
                 <th class="hide-sm">單位</th>
                 <th>姓名</th>
+                <th class="hide-sm">員編</th>
                 <th class="hide-sm">信箱</th>
                 <th class="hide-sm">梯次</th>
                 <th>授權碼</th>
@@ -250,19 +271,23 @@
         <input type="text" id="f-name" placeholder="王小明">
       </div>
       <div>
-        <label>信箱</label>
-        <input type="email" id="f-email" placeholder="example@email.com">
+        <label>員編</label>
+        <input type="text" id="f-employee-id" placeholder="例：A12345">
       </div>
     </div>
     <div class="form-row-2">
       <div>
+        <label>信箱</label>
+        <input type="email" id="f-email" placeholder="example@email.com">
+      </div>
+      <div>
         <label>梯次名稱</label>
         <input type="text" id="f-batch-name" placeholder="2026第一梯次">
       </div>
-      <div>
-        <label>授權到期日</label>
-        <input type="date" id="f-expires-at">
-      </div>
+    </div>
+    <div class="form-row">
+      <label>授權到期日</label>
+      <input type="date" id="f-expires-at">
     </div>
     <div class="form-row">
       <label>指定授權碼 <span style="color:var(--muted)">(留空則從可用授權碼中自動分配)</span></label>
@@ -466,7 +491,7 @@ async function loadUsers() {
   const emptyRow = document.createElement('tr');
   emptyRow.className = 'empty-row';
   const emptyCell = document.createElement('td');
-  emptyCell.setAttribute('colspan', '10');
+  emptyCell.setAttribute('colspan', '11');
   emptyCell.textContent = '載入中…';
   emptyRow.appendChild(emptyCell);
   tbody.replaceChildren(emptyRow);
@@ -476,7 +501,7 @@ async function loadUsers() {
     const errRow = document.createElement('tr');
     errRow.className = 'empty-row';
     const errCell = document.createElement('td');
-    errCell.setAttribute('colspan', '10');
+    errCell.setAttribute('colspan', '11');
     errCell.style.color = 'var(--danger)';
     errCell.textContent = '載入失敗：' + error.message;
     errRow.appendChild(errCell);
@@ -484,14 +509,52 @@ async function loadUsers() {
     return;
   }
   allStudents = data || [];
-  updateUserStats(); renderTable();
+  updateUserStats(); renderTable(); renderUnitBreakdown();
 }
 
 function updateUserStats() {
+  const now = new Date();
+  const todayStr = now.toDateString();
   document.getElementById('s-total').textContent   = allStudents.length;
   document.getElementById('s-active').textContent  = allStudents.filter(s => s.key_code).length;
   document.getElementById('s-expired').textContent = allStudents.filter(s => !s.key_code).length;
   document.getElementById('s-logins').textContent  = allStudents.filter(s => s.email_sent_at).length;
+  document.getElementById('s-today').textContent   = allStudents.filter(s => s.created_at && new Date(s.created_at).toDateString() === todayStr).length;
+  document.getElementById('s-expiring').textContent = allStudents.filter(s => {
+    if (!s.is_active || !s.expires_at) return false;
+    const daysLeft = Math.ceil((new Date(s.expires_at) - now) / 86400000);
+    return daysLeft >= 0 && daysLeft <= 7;
+  }).length;
+}
+
+function renderUnitBreakdown() {
+  const counts = {};
+  allStudents.forEach(s => {
+    const unit = s.unit_name || '未填寫';
+    counts[unit] = (counts[unit] || 0) + 1;
+  });
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const tbody = document.getElementById('unit-breakdown-tbody');
+  if (!entries.length) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.className = 'empty-row';
+    const emptyCell = document.createElement('td');
+    emptyCell.setAttribute('colspan', '2');
+    emptyCell.textContent = '尚無資料';
+    emptyRow.appendChild(emptyCell);
+    tbody.replaceChildren(emptyRow);
+    return;
+  }
+  const rows = entries.map(([unit, count]) => {
+    const tr = document.createElement('tr');
+    const tdUnit = document.createElement('td');
+    tdUnit.textContent = unit;
+    const tdCount = document.createElement('td');
+    tdCount.textContent = count;
+    tr.append(tdUnit, tdCount);
+    return tr;
+  });
+  tbody.replaceChildren(...rows);
 }
 
 function renderTable() {
@@ -500,6 +563,7 @@ function renderTable() {
     u.name?.toLowerCase().includes(q) ||
     u.region?.toLowerCase().includes(q) ||
     u.unit_name?.toLowerCase().includes(q) ||
+    u.employee_id?.toLowerCase().includes(q) ||
     u.email?.toLowerCase().includes(q) ||
     u.batch_name?.toLowerCase().includes(q)
   );
@@ -508,7 +572,7 @@ function renderTable() {
     const emptyRow = document.createElement('tr');
     emptyRow.className = 'empty-row';
     const emptyCell = document.createElement('td');
-    emptyCell.setAttribute('colspan', '10');
+    emptyCell.setAttribute('colspan', '11');
     emptyCell.textContent = '查無資料';
     emptyRow.appendChild(emptyCell);
     tbody.replaceChildren(emptyRow);
@@ -549,6 +613,11 @@ function renderTable() {
     const strong = document.createElement('strong');
     strong.textContent = u.name;
     tdName.appendChild(strong);
+
+    // 員編
+    const tdEmployeeId = document.createElement('td');
+    tdEmployeeId.className = 'hide-sm';
+    tdEmployeeId.textContent = u.employee_id || '—';
 
     // 信箱
     const tdEmail = document.createElement('td');
@@ -614,7 +683,14 @@ function renderTable() {
     toggleBtn.onclick = () => toggleUser(u.id, !u.is_active);
     tdOps.appendChild(toggleBtn);
 
-    tr.append(tdRegion, tdUnit, tdName, tdEmail, tdBatch, tdKey, tdExp, tdBadge, tdSend, tdOps);
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn-danger btn-sm';
+    deleteBtn.style.marginLeft = '4px';
+    deleteBtn.textContent = '刪除';
+    deleteBtn.onclick = () => deleteUser(u.id);
+    tdOps.appendChild(deleteBtn);
+
+    tr.append(tdRegion, tdUnit, tdName, tdEmployeeId, tdEmail, tdBatch, tdKey, tdExp, tdBadge, tdSend, tdOps);
     return tr;
   });
 
@@ -624,6 +700,24 @@ function renderTable() {
 async function toggleUser(id, active) {
   const { error } = await sb.from('students').update({ is_active: active }).eq('id', id);
   if (error) { alert('操作失敗：' + error.message); return; }
+  loadUsers();
+}
+
+async function deleteUser(id) {
+  const u = allStudents.find(x => x.id === id);
+  if (!u) return;
+  if (!confirm(`確定要刪除學員「${u.name}」嗎？此操作無法復原。`)) return;
+
+  if (u.key_id) {
+    await sb.from('key_sessions').delete().eq('key_id', u.key_id);
+    const { count } = await sb.from('students').select('id', { count: 'exact', head: true }).eq('key_id', u.key_id).neq('id', id);
+    if (!count) {
+      await sb.from('license_keys').delete().eq('id', u.key_id);
+    }
+  }
+
+  const { error } = await sb.from('students').delete().eq('id', id);
+  if (error) { alert('刪除失敗：' + error.message); return; }
   loadUsers();
 }
 
@@ -663,7 +757,7 @@ async function sendLicenseEmail(studentId) {
 async function openAddUserModal() {
   document.getElementById('user-modal-title').textContent = '新增學員';
   document.getElementById('edit-user-id').value = '';
-  ['f-region','f-unit','f-name','f-email','f-batch-name','f-notes'].forEach(id => document.getElementById(id).value = '');
+  ['f-region','f-unit','f-name','f-employee-id','f-email','f-batch-name','f-notes'].forEach(id => document.getElementById(id).value = '');
   const d = new Date(); d.setMonth(d.getMonth() + 6);
   document.getElementById('f-expires-at').value = d.toISOString().substring(0,10);
   document.getElementById('user-modal-error').textContent = '';
@@ -679,6 +773,7 @@ async function openEditUserModal(id) {
   document.getElementById('f-region').value        = u.region || '';
   document.getElementById('f-unit').value          = u.unit_name || '';
   document.getElementById('f-name').value          = u.name || '';
+  document.getElementById('f-employee-id').value   = u.employee_id || '';
   document.getElementById('f-email').value         = u.email || '';
   document.getElementById('f-batch-name').value    = u.batch_name || '';
   document.getElementById('f-expires-at').value    = u.expires_at?.substring(0,10) || '';
@@ -693,6 +788,7 @@ async function saveUser() {
   const region  = document.getElementById('f-region').value.trim();
   const unit    = document.getElementById('f-unit').value.trim();
   const name    = document.getElementById('f-name').value.trim();
+  const employeeId = document.getElementById('f-employee-id').value.trim();
   const email   = document.getElementById('f-email').value.trim();
   const batch   = document.getElementById('f-batch-name').value.trim();
   const expires = document.getElementById('f-expires-at').value;
@@ -736,6 +832,7 @@ async function saveUser() {
     region: region || null,
     unit_name: unit || null,
     name,
+    employee_id: employeeId || null,
     email: email || null,
     batch_name: batch || null,
     key_id: keyId,
@@ -821,6 +918,7 @@ function renderKeysTable() {
           ? `<button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="toggleKey('${k.id}',false)">停用</button>`
           : `<button class="btn btn-outline btn-sm" style="margin-left:4px" onclick="toggleKey('${k.id}',true)">啟用</button>`
         }
+        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteKey('${k.id}')">刪除</button>
       </td>
     </tr>`;
   }).join('');
@@ -898,6 +996,21 @@ async function saveKey() {
 async function toggleKey(id, active) {
   const { error } = await sb.from('license_keys').update({ is_active: active }).eq('id', id);
   if (error) { alert('操作失敗：' + error.message); return; }
+  loadKeys();
+}
+
+async function deleteKey(id) {
+  const k = allKeys.find(x => x.id === id);
+  if (!k) return;
+
+  const { count } = await sb.from('students').select('id', { count: 'exact', head: true }).eq('key_id', id);
+  if (count) { alert('此授權碼仍被學員使用中，請先刪除或改派對應學員後再刪除。'); return; }
+
+  if (!confirm(`確定要刪除授權碼「${k.key_code}」嗎？此操作無法復原。`)) return;
+
+  await sb.from('key_sessions').delete().eq('key_id', id);
+  const { error } = await sb.from('license_keys').delete().eq('id', id);
+  if (error) { alert('刪除失敗：' + error.message); return; }
   loadKeys();
 }
 
