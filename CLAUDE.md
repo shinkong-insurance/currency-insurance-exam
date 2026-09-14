@@ -21,9 +21,17 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
   新增/即將到期/依單位分組）、新建 `web/admin-guide.html`、更新
   `web/student-guide.html`。`flutter analyze` 0 error、`flutter test` 42
   個測試全過（含新增 `test/features/auth/lk_gate_page_test.dart` 4 個）。
-  **尚未部署**：migration 沒有 `supabase db push`、Edge Function 沒有
-  `supabase functions deploy`、`web/` 底下的 html 沒有重新 build+部署到
-  `gh-pages`，需要有 Supabase 專案存取權限的人接手，見下方「還沒做的事」。
+  **已部署並實測成功**：`0007_lk_auto_auth_fields.sql` 已 `db push`（套用前
+  先用 `supabase migration repair` 修復了遠端 migration history 的既有落差——
+  0001-0006 先前是透過 Dashboard SQL editor 套用、CLI 一直不知道，另外 4 筆
+  `2026-09-08` 的孤兒 timestamp migration 也一併標記 reverted，詳見 git log）；
+  `auto-register-student` Edge Function 已 `functions deploy`，並用 curl 測過
+  「缺欄位」「新員編」「同姓名+單位+員編重複送出續權」三種情境全部正確；
+  `flutter build web --base-href /currency-insurance-exam/` 後的
+  `build/web`（含新版 `admin.html`/`admin-guide.html`/`student-guide.html`）
+  已推上 `gh-pages`，正式站 `https://shinkong-insurance.github.io/
+  currency-insurance-exam/admin-guide.html` 等頁面已驗證可正常存取。
+  本機 `main` 分支已 commit（`ede2ccd`），**尚未 push 到 origin**。
 - **2026-09-09 確認：ABCDE v3 題庫才是正式範圍，2025Q1 批次暫緩、不再繼續開發**。
   使用者另外上傳 `外幣題庫_ABCDE卷整理(含新增)v3.pdf`（跟 `scripts/extract/
   v3_pdf_update_2026-09-04.md` 記錄的來源檔逐位元組比對確認一致：317 筆原始列，
@@ -50,7 +58,8 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
   `insurance-exam-app/web/admin.html`）。管理員帳號 `admin@skl.com.tw` 已建立並
   實測登入成功，過程中修正 2 個 schema 落差（新增 `students` 表、
   `license_keys` 補 `notes` 欄位、`loadKeys()` 排序欄位改用 `expires_at`）。
-  **還沒 build+部署**，細節見 runbook 最上面。
+  （此處原註記「還沒 build+部署」已過時——2026-09-14 的 `#/lk` 自動授權
+  改動已把當時累積的 `admin.html` 變更一併 build+部署上線，見上方條目。）
 - **已正式上線**：https://shinkong-insurance.github.io/currency-insurance-exam/
   （GitHub repo：https://github.com/shinkong-insurance/currency-insurance-exam，
   `main` 放原始碼、`gh-pages` 放建置後的靜態網頁）
@@ -65,19 +74,14 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
 
 ## 還沒做的事
 
-- **`#/lk` 自動授權部署**（程式碼已完成，見上方 2026-09-14 條目）：
-  1. `supabase db push`（或 Dashboard 手動執行）套用
-     `0007_lk_auto_auth_fields.sql`
-  2. `supabase functions deploy auto-register-student`（需先 `supabase login`
-     + 專案存取權限；此 repo 內沒有存 Supabase URL/service role key，需另外
-     設定環境變數 `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`——Edge Function
-     執行環境會自動注入，不需要手動設定）
-  3. `flutter build web --base-href /currency-insurance-exam/` 後把
-     `build/web` 內容、連同 `web/admin.html`、`web/admin-guide.html`、
-     `web/student-guide.html` 一併部署到 `gh-pages` 分支
-  4. 部署後於正式站 `#/lk` 走一次完整流程（填姓名/單位/員編 → 確認直接登入
-     → `admin.html` 能看到該筆新資料），並用 curl 測 Edge Function 的
-     「新員編」「同姓名+單位+員編重複送出續權」「缺欄位」三種情境
+- **`#/lk` 自動授權：瀏覽器手動走查尚待確認**（程式碼、migration、Edge
+  Function 部署、gh-pages 部署都已完成並用 curl 測過三種情境，見上方
+  2026-09-14 條目；唯獨還沒有人實際在瀏覽器打開
+  `https://shinkong-insurance.github.io/currency-insurance-exam/#/lk`，
+  用真人手動填姓名/單位/員編走一次「送出 → 直接登入 → 能看到題庫」，也還
+  沒在 `admin.html` 檢查這筆測試資料顯示是否正常——建議上線前補這一步）。
+- 本機 `main` 分支已有一個 commit 尚未 push 到 `origin/main`
+  （`ede2ccd`，含本次 `#/lk` 自動授權的所有程式碼異動）。
 - **✅ 2026-09-09 完成：ABCDE v3 題庫 317 題（實際 309 題，扣除 8 筆確認重複）
   全部可供考生練習**。147 題（ch5/6/7/8）白話解析已補完 145 題（2 題依專案
   慣例留白，見下方）、191 題新分類題目已 seed（`reviewed=true`）、18 個
