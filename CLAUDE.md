@@ -9,6 +9,21 @@ Flutter Web 考照練習 App（外幣保險資格測驗，沿用壽險版 `insur
 
 ## 目前狀態速覽（詳細見 runbook 最上面）
 
+- **2026-10-02 內容更新（已直接寫入 Supabase 正式資料庫，Flutter 不需重新部署）**：
+  比對舊上課講義（外幣重點/外幣一~四）與 v3 題庫，審核報告在
+  `scripts/generate/handout_review_2026-10-02.md`。上線內容：
+  20 張新口訣卡（`approved=true`，原 4 張口訣卡內容一併清掉課本頁碼）；
+  補齊所有可見題目的 `keyword_hint`；補 3 題白話解析（#122/#1021/#1007）；
+  全面複查後修正 12 題白話解析（#929、#976 原本答案寫錯、#19 理由錯等）與
+  2 題 keyword_hint（#54、#1027）。**下架 5 題**（`reviewed=false`，並從
+  levels 移除）：#978 生命表年份與答案矛盾、#994 已取消之舊規定、
+  #955/#956 選項邏輯錯誤、#980 查無依據。可見題數 309 → 304。
+  `explanation` 與 `keyword_hint` 完全相同的 136 題，`explanation` 已清空
+  避免考生看到重複兩段，原文備份在 Supabase 表 `explanation_backup_20261002`
+  （RLS 開啟、無 policy，anon 讀不到）。還原：
+  `scripts/generate/output/handout_rollback_2026-10-02.sql`（不含 explanation 還原，
+  需要時用 `update questions q set explanation=b.explanation from explanation_backup_20261002 b where q.id=b.id;`）。
+
 - **2026-09-14 完成（程式碼）：`#/lk` 自動授權（比照壽險版 insurance-exam-app
   的 lk-auto-authorization，但外幣版沒有電話/推薦人概念，改用「姓名+單位+員編」
   三欄辨識同一人）**。學員填姓名/單位/員編即可自動取得 60 天授權並直接登入，
